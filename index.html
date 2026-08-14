@@ -981,31 +981,76 @@ function shade(hex, f){
   r = Math.min(255, Math.round(r * f)); g = Math.min(255, Math.round(g * f)); b = Math.min(255, Math.round(b * f));
   return "rgb(" + r + "," + g + "," + b + ")";
 }
-function drawTank(x, y, dir, color, size, invincible){
+function drawTank(x, y, dir, color, size, invincible, variant){
   const s = size || TANK_SIZE;
   ctx.save();
   ctx.translate(Math.round(x + s / 2), Math.round(y + s / 2));
   ctx.rotate(dir * Math.PI / 2);
   const r = s / 2;
-  ctx.fillStyle = "#1c1c1c";
-  ctx.fillRect(-r + 1, -r + 1, 5, s - 2);
-  ctx.fillRect(r - 6, -r + 1, 5, s - 2);
-  ctx.fillStyle = "#3a3a3a";
-  for (let i = -r + 3; i < r - 2; i += 5) { ctx.fillRect(-r + 2, i, 3, 3); ctx.fillRect(r - 5, i, 3, 3); }
-  ctx.fillStyle = color;
-  ctx.fillRect(-r + 6, -r + 2, s - 12, s - 4);
-  ctx.fillStyle = shade(color, 1.25);
-  ctx.fillRect(-r + 6, -r + 2, s - 12, 3);
-  ctx.fillStyle = shade(color, 0.8);
-  ctx.fillRect(-r + 8, -r + 5, s - 16, s - 10);
-  ctx.fillStyle = shade(color, 1.15);
-  ctx.fillRect(-r + 8, -r + 5, s - 16, 3);
-  ctx.fillStyle = "#262626";
-  ctx.fillRect(-3, -r - 5, 6, 8);
-  ctx.fillStyle = "#5a5a5a";
-  ctx.fillRect(-3, -r - 5, 6, 2);
-  ctx.fillStyle = "#fff";
-  ctx.fillRect(-2, -r + 1, 4, 3);
+  if (s < 20) {
+    // 迷你图标（面板预览 / 命数）：简化版
+    ctx.fillStyle = "#1c1c1c";
+    ctx.fillRect(-r, -r, 3, s); ctx.fillRect(r - 3, -r, 3, s);
+    ctx.fillStyle = "#4a4a4a";
+    for (let i = -r; i < r - 2; i += 3) { ctx.fillRect(-r + 1, i, 1, 1); ctx.fillRect(r - 2, i, 1, 1); }
+    ctx.fillStyle = color;
+    ctx.fillRect(-r + 3, -r + 4, s - 6, s - 6);
+    ctx.fillStyle = shade(color, 1.25); ctx.fillRect(-r + 3, -r + 4, s - 6, 2);
+    ctx.fillStyle = shade(color, 0.8);
+    ctx.fillRect(-r + 3, r - 3, s - 6, 2);
+    ctx.fillRect(-r + 3, -r + 4, 2, s - 6);
+    ctx.fillStyle = color;
+    ctx.fillRect(-3, -r + 2, 6, 4);
+    ctx.fillStyle = shade(color, 1.3); ctx.fillRect(-3, -r + 2, 6, 1);
+    ctx.fillStyle = "#262626"; ctx.fillRect(-1, -r - 2, 2, 5);
+    ctx.fillStyle = "#6a6a6a"; ctx.fillRect(-1, -r - 2, 1, 5);
+  } else {
+    const enemy = (variant === 1);
+    const cDk  = shade(color, 0.78);
+    const cMid = shade(color, 0.92);
+    const cLt  = shade(color, 1.28);
+    // 两侧履带（整条长度）
+    ctx.fillStyle = "#202020";
+    ctx.fillRect(-r, -r, 5, s); ctx.fillRect(r - 5, -r, 5, s);
+    ctx.fillStyle = "#0d0d0d";
+    ctx.fillRect(-r, -r, 5, 3); ctx.fillRect(r - 5, -r, 5, 3); // 前部驱动轮罩
+    ctx.fillStyle = "#4a4a4a";
+    for (let i = -r + 4; i < r - 1; i += 5) { ctx.fillRect(-r + 1, i, 3, 2); ctx.fillRect(r - 4, i, 3, 2); } // 履带节
+    // 车体
+    ctx.fillStyle = color;
+    ctx.fillRect(-r + 5, -r + 12, s - 10, s - 12);
+    ctx.fillStyle = cLt;
+    ctx.fillRect(-r + 5, -r + 12, s - 10, 3);                 // 顶部高光
+    ctx.fillStyle = cDk;
+    ctx.fillRect(-r + 5, r - 4, s - 10, 2);                   // 底部阴影
+    ctx.fillRect(-r + 5, -r + 12, 2, s - 12);                 // 左侧棱影
+    ctx.fillStyle = cMid;
+    if (enemy) {
+      ctx.fillRect(-r + 5, -r + 17, s - 10, 3);               // 敌机：横贯装甲带
+    } else {
+      ctx.fillRect(-r + 6, -r + 22, s - 12, 1);               // 玩家：甲板接缝
+    }
+    // 炮塔
+    ctx.fillStyle = color;
+    ctx.fillRect(-6, -r + 6, 12, 11);
+    if (!enemy) {                                             // 玩家炮塔有圆顶
+      ctx.fillRect(-5, -r + 3, 10, 3);
+      ctx.fillRect(-3, -r + 2, 6, 1);
+    }
+    ctx.fillStyle = cLt;
+    ctx.fillRect(-6, -r + 6, 12, 3);
+    ctx.fillStyle = cDk;
+    ctx.fillRect(-6, r - 11, 12, 2);
+    // 炮管
+    ctx.fillStyle = "#3a3a3a";
+    ctx.fillRect(-2, -r - 4, 4, 10);
+    ctx.fillStyle = "#6a6a6a";
+    ctx.fillRect(-2, -r - 4, 2, 10);                          // 炮管左棱高光
+    ctx.fillStyle = "#141414";
+    ctx.fillRect(-2, -r - 4, 4, 2);                           // 炮口
+    ctx.fillStyle = "#2a2a2a";
+    ctx.fillRect(-3, -r + 5, 6, 2);                           // 炮座法兰
+  }
   if (invincible > 0) {
     ctx.strokeStyle = "rgba(130,225,255," + (0.5 + 0.4 * Math.sin(elapsed * 10)) + ")";
     ctx.lineWidth = 2;
@@ -1115,7 +1160,7 @@ function drawPlayfield(){
   // 出生指示
   for (const ind of spawnIndicators) {
     if (Math.floor(elapsed * 6) % 2 === 0)
-      drawTank(ind.x, ind.y, DOWN, "#9a9a9a", TANK_SIZE, 0);
+      drawTank(ind.x, ind.y, DOWN, "#9a9a9a", TANK_SIZE, 0, 1);
   }
   // 道具
   for (const pw of powerups) drawPowerup(pw);
@@ -1124,7 +1169,7 @@ function drawPlayfield(){
   for (const e of enemies) if (e.alive) {
     let col = ENEMY_TYPES[e.etype].color;
     if (e.flash && Math.floor(elapsed * 5) % 2 === 0) col = "#ffffff";
-    drawTank(e.x, e.y, e.dir, col, TANK_SIZE, 0);
+    drawTank(e.x, e.y, e.dir, col, TANK_SIZE, 0, 1);
   }
   // 子弹
   for (const b of bullets) {
@@ -1178,7 +1223,7 @@ function drawHUD(){
   ctx.fillText(String(enemiesRemaining).padStart(2, "0"), x0 + 14, 178);
   for (let i = 0; i < Math.min(10, enemiesRemaining); i++) {
     const ix = x0 + 14 + (i % 5) * 16, iy = 200 + Math.floor(i / 5) * 16;
-    drawTank(ix, iy, DOWN, "#8f8f9a", 14, 0);
+    drawTank(ix, iy, DOWN, "#8f8f9a", 14, 0, 1);
   }
 
   // 玩家命数
