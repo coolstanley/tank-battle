@@ -72,6 +72,7 @@
     border:1px solid #333;background:#23232e;color:#e9e9e9;cursor:pointer;font-family:inherit;}
   #netBox button:active{background:#333;}
   #netBox button.primary{background:#f5c542;color:#141419;font-weight:bold;}
+  #netBox button#netJoin{background:#2f6fb0;color:#fff;font-weight:bold;}
   #netBox button#netClose{background:#2a2a34;color:#9a9aa6;}
   .netPanel{display:none;margin-top:4px;}
   .netPanel.show{display:block;}
@@ -103,7 +104,10 @@
   <div id="netBox">
     <div id="netTitle">联机对战</div>
     <div id="netStatus">同一 WiFi 下，创建者当主机，对方加入</div>
-    <button id="netHost" class="primary">创建房间（当主机）</button>
+    <div id="netEntry">
+      <button id="netHost" class="primary">创建房间（当主机）</button>
+      <button id="netJoin" class="primary">加入房间（当从机）</button>
+    </div>
     <div id="hostPanel" class="netPanel">
       <div class="netLabel">① 复制「房间码」发给对方</div>
       <textarea id="hostCode" readonly></textarea>
@@ -115,7 +119,7 @@
     <div id="joinPanel" class="netPanel">
       <div class="netLabel">① 粘贴对方的「房间码」</div>
       <textarea id="joinCode" placeholder="粘贴房间码"></textarea>
-      <button id="joinGo" class="primary">加入房间（当从机）</button>
+      <button id="joinGo" class="primary">连接</button>
       <div class="netLabel">② 复制「回执码」发回给主机</div>
       <textarea id="joinAnswer" readonly></textarea>
       <button id="joinCopy">复制回执码</button>
@@ -1616,14 +1620,20 @@ function netCreate(){
   try { netPC = new RTCPeerConnection(); } catch(e){ setNetStatus("此浏览器不支持 WebRTC"); return; }
   netRole = "host";
   setupDC(netPC.createDataChannel("game"));
+  $("netEntry").style.display = "none";
+  $("hostPanel").classList.add("show");
+  $("joinPanel").classList.remove("show");
   setNetStatus("正在生成房间码…");
   netPC.createOffer().then(o => netPC.setLocalDescription(o)).then(() => waitIce(netPC)).then(() => {
     $("hostCode").value = codeEncode(netPC.localDescription.sdp);
-    $("hostPanel").classList.add("show");
-    $("joinPanel").classList.remove("show");
-    $("netHost").style.display = "none";
     setNetStatus("房间码已生成，复制发给对方");
   }).catch(e => setNetStatus("创建失败：" + e.message));
+}
+function netJoinEntry(){
+  $("netEntry").style.display = "none";
+  $("hostPanel").classList.remove("show");
+  $("joinPanel").classList.add("show");
+  setNetStatus("粘贴对方的房间码，然后点连接");
 }
 function netJoin(){
   const code = $("joinCode").value.trim();
@@ -1636,9 +1646,6 @@ function netJoin(){
   netPC.setRemoteDescription(offer).then(() => netPC.createAnswer())
     .then(a => netPC.setLocalDescription(a)).then(() => waitIce(netPC)).then(() => {
       $("joinAnswer").value = codeEncode(netPC.localDescription.sdp);
-      $("joinPanel").classList.add("show");
-      $("hostPanel").classList.remove("show");
-      $("netHost").style.display = "none";
       setNetStatus("回执码已生成，复制发回给主机");
     }).catch(e => setNetStatus("加入失败：" + e.message));
 }
@@ -1653,7 +1660,7 @@ function setNetStatus(t){ $("netStatus").textContent = t; }
 function openNetModal(){
   if (state !== "title") return;
   $("netStatus").textContent = "同一 WiFi 下，创建者当主机，对方加入";
-  $("netHost").style.display = "block";
+  $("netEntry").style.display = "block";
   $("hostPanel").classList.remove("show");
   $("joinPanel").classList.remove("show");
   $("hostCode").value = ""; $("hostAnswer").value = "";
@@ -1677,6 +1684,7 @@ function fallbackCopy(ta, done){
   catch(e){ done(false); }
 }
 $("netHost").addEventListener("click", netCreate);
+$("netJoin").addEventListener("click", netJoinEntry);
 $("hostCopy").addEventListener("click", e => copyText("hostCode", e.currentTarget));
 $("hostAccept").addEventListener("click", netAccept);
 $("joinGo").addEventListener("click", netJoin);
