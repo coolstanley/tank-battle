@@ -11,7 +11,7 @@
   #wrap{position:relative;}
   canvas{image-rendering:pixelated;image-rendering:crisp-edges;background:#000;
     border:2px solid #3a3a3a;border-radius:4px;
-    width:min(97vw, calc((100vh - 170px) * 1.423));height:auto;max-width:100%;}
+    width:min(97vw, calc((100vh - 170px) * 1.423), calc((100dvh - 170px) * 1.423));height:auto;max-width:100%;}
   #touch{display:none;position:fixed;left:0;right:0;bottom:10px;height:130px;z-index:10;
     pointer-events:none;justify-content:space-between;align-items:center;padding:0 8vw;}
   #touch.visible{display:flex;}
@@ -200,6 +200,70 @@ const STAGES = [
 "..#..%..%.#..",
 "....%...%....",
 "............."
+],
+// 第 9 关
+[
+".............",
+"....@..@.....",
+"....@..@.....",
+"..#..#..#..#.",
+"..#..#..#..#.",
+"..#......#.#.",
+"......##.....",
+".##....##....",
+".#......#....",
+".#....#.#....",
+".##....##....",
+".............",
+"............."
+],
+// 第 10 关
+[
+".............",
+"..~....~.....",
+"..~....~.....",
+"..#~#..#~#...",
+"....~..~.....",
+"....~..~..#..",
+".#......#..#.",
+".#.........#.",
+"..#..##....#.",
+"..#..##..#...",
+"......#......",
+".............",
+"............."
+],
+// 第 11 关
+[
+".............",
+"..#.....#....",
+"..#.....#....",
+".-.-.....-.-.",
+".............",
+"..#.....#..#.",
+"..#..@..@..#.",
+".#..@....@..#",
+".#..#..#..#..",
+".#..#..#..#..",
+".#..#..#..#..",
+".............",
+"............."
+],
+// 第 12 关
+[
+".............",
+".@@.......@@.",
+".@@.......@@.",
+"..#.......#..",
+".#.#.....#.#.",
+".#.#.##.#.#..",
+"....#..#.....",
+"....#..#.....",
+"..#......#...",
+"..#.....#....",
+"..##...##....",
+".............",
+"............."
 ]
 ];
 
@@ -279,7 +343,9 @@ const touchBtn = (el, k) => {
 document.querySelectorAll(".dbtn").forEach(b => touchBtn(b, b.dataset.k));
 touchBtn($("tfire"), "fire");
 const isTouch = ("ontouchstart" in window) || (navigator.maxTouchPoints > 0);
-if (isTouch) $("touch").classList.add("visible");
+function syncTouchPad(){ // 触控面板只在战斗中显示
+  $("touch").classList.toggle("visible", isTouch && (state === "play" || state === "stageclear"));
+}
 
 const pressed = {
   p1: { up:false, down:false, left:false, right:false, fire:false },
@@ -312,7 +378,7 @@ let map = [], brickMask = [];
 let score1 = 0, score2 = 0, hiscore = 0;
 let lives1 = 3, lives2 = 3;
 let bonusLv1 = 0, bonusLv2 = 0;   // 满500分加命
-let enemiesRemaining = 35, enemiesSpawned = 0;
+let enemiesRemaining = 15, enemiesSpawned = 0;
 let players = [], enemies = [], bullets = [], powerups = [];
 let explosions = [], floaters = [], spawnIndicators = [];
 let spawnTimer = 0, spawnCycle = 0, MAX_ON_FIELD = 4;
@@ -642,10 +708,14 @@ function pickEnemyDir(e){
   e.dir = d; e.moving = true;
 }
 function enemyTypeFor(n){
-  if (n % 13 === 11) return 3; // 装甲
-  if (n % 8 === 5) return 2;   // 炮车
-  if (n % 4 === 1) return 1;   // 快车
-  return 0;                    // 普通
+  // 难度逐关解锁：前几关以普通/快车为主，后期才出现炮车、装甲
+  const s = stage;
+  if (s >= 3 && n % 13 === 11) return 3;   // 装甲：第3关起（每13辆）
+  if (s >= 2 && n % 8 === 5) return 2;     // 炮车：第2关起（每8辆）
+  if (s >= 5 && n % 11 === 6) return 3;    // 第5关起装甲加量
+  if (s >= 4 && n % 5 === 2) return 2;     // 第4关起炮车加量
+  if (n % 4 === 1) return 1;               // 快车：全程少量
+  return 0;                                // 普通
 }
 
 // ============ 出生逻辑 ============
@@ -698,7 +768,8 @@ function loadStage(){
   stage++;
   enemies = []; bullets = []; powerups = []; explosions = []; floaters = [];
   spawnIndicators = [];
-  enemiesRemaining = 35; enemiesSpawned = 0;
+  enemiesRemaining = Math.min(26, 12 + (stage - 1) * 2); // 敌军随关卡递增：第1关12辆，最多26辆
+  enemiesSpawned = 0;
   spawnTimer = 2.6; spawnCycle = 0;
   freezeTimer = 0; if (shieldTimer > 0) deactivateShield();
   buildStage();
@@ -1159,9 +1230,11 @@ function loop(ts){
   else if (state === "stageclear") { clearTimer -= dt; if (clearTimer <= 0) { loadStage(); state = "play"; } }
   else if (state === "gameover") { goTimer -= dt; }
   if (state === "title") elapsed += dt;
+  syncTouchPad();
   render();
 }
 requestAnimationFrame(loop);
+syncTouchPad();
 </script>
 </body>
 </html>
