@@ -13,7 +13,7 @@
   canvas{image-rendering:pixelated;image-rendering:crisp-edges;background:#000;
     border:1px solid #26262e;border-radius:10px;
     box-shadow:0 8px 28px rgba(0,0,0,.5);
-    width:min(97vw, calc((100vh - 130px) * 1.423), calc((100dvh - 130px) * 1.423));height:auto;max-width:100%;}
+    width:min(97vw, calc((100vh - 130px) * 0.8784), calc((100dvh - 130px) * 0.8784));height:auto;max-width:100%;}
   #touch{display:none;position:fixed;left:0;right:0;bottom:12px;height:200px;z-index:10;
     pointer-events:none;justify-content:space-between;align-items:center;padding:0 6vw 0 3vw;}
   #touch.visible{display:flex;}
@@ -89,9 +89,10 @@ const canvas = $('c'), ctx = canvas.getContext('2d');
 
 const TILE = 32, COLS = 13, ROWS = 13;
 const FIELD = COLS * TILE;            // 416 —— 逻辑战场尺寸（网格/碰撞仍用 2D 坐标，不变）
-const PANEL = 176;                    // 右侧信息栏宽
-const HUD_X = FIELD;                  // 416 —— 右侧信息栏起始 x
-const W = HUD_X + PANEL, H = 416;     // 592 x 416
+const TOPBAR_H = 72;                  // 顶部信息栏高度
+const FIELD_PX = 520;                 // 战场渲染像素尺寸（等比例放大显示）
+const SCALE = FIELD_PX / FIELD;       // 1.25 —— 渲染缩放系数
+const W = FIELD_PX, H = TOPBAR_H + FIELD_PX;   // 520 x 592
 canvas.width = W; canvas.height = H;
 
 // 方向
@@ -410,7 +411,7 @@ function fitCanvas(){ // 手机端用真实可视高度重算画布，避开 vh/
   const padH = (state === "play" || state === "stageclear") ? 224 : 24; // 底部触控面板占用高度
   const availH = Math.max(180, (window.innerHeight || 0) - padH);
   const availW = Math.max(180, (window.innerWidth || 0) - 6);
-  const w = Math.min(availW, availH * 1.423);
+  const w = Math.min(availW, availH * (W / H));
   canvas.style.width = Math.floor(w) + "px";
   canvas.style.height = "auto";
 }
@@ -1192,6 +1193,9 @@ function drawExplosion(ex){
 }
 
 function drawPlayfield(){
+  ctx.save();
+  ctx.translate(0, TOPBAR_H);
+  ctx.scale(SCALE, SCALE);
   // 1) 地面与平面 tile（最底层）
   for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
     const tt = tileType(c, r);
@@ -1234,59 +1238,57 @@ function drawPlayfield(){
     ctx.fillText(f.txt, f.x, f.y - f.t * 22);
   }
   ctx.globalAlpha = 1;
+  ctx.restore();
 }
 
 function drawHUD(){
-  const x0 = HUD_X;
-  ctx.fillStyle = "#141419"; ctx.fillRect(x0, 0, PANEL, H);
-  ctx.strokeStyle = "#26262e"; ctx.lineWidth = 1; ctx.strokeRect(x0 + 0.5, 0.5, PANEL - 1, H - 1);
+  ctx.fillStyle = "#141419"; ctx.fillRect(0, 0, W, TOPBAR_H);
+  ctx.strokeStyle = "#26262e"; ctx.lineWidth = 1; ctx.strokeRect(0.5, 0.5, W - 1, TOPBAR_H - 1);
   ctx.textAlign = "left"; ctx.textBaseline = "top";
-  const label = (txt, yy) => { ctx.fillStyle = "#8a8a9a"; ctx.font = "12px 'Microsoft YaHei',monospace"; ctx.fillText(txt, x0 + 16, yy); };
-  const val = (txt, yy, col, sz) => { ctx.fillStyle = col || "#fff"; ctx.font = "bold " + (sz || 15) + "px monospace"; ctx.fillText(txt, x0 + 16, yy); };
-  const div = (yy) => { ctx.fillStyle = "#26262e"; ctx.fillRect(x0 + 14, yy, PANEL - 28, 1); };
+  const label = (txt, x, y) => { ctx.fillStyle = "#8a8a9a"; ctx.font = "11px 'Microsoft YaHei',monospace"; ctx.fillText(txt, x, y); };
+  const val = (txt, x, y, col, sz) => { ctx.fillStyle = col || "#fff"; ctx.font = "bold " + (sz || 14) + "px monospace"; ctx.fillText(txt, x, y); };
 
-  label("HISCORE", 16);
-  val(String(hiscore).padStart(6, "0"), 32, "#f5c542", 16);
-  label("SCORE", 56);
-  val(String(score1).padStart(6, "0"), 72, "#e8e8ee");
-  if (gameMode === "2p") val(String(score2).padStart(6, "0"), 90, "#45b545");
-  div(106);
-  label("STAGE", 116);
-  val(String(stage).padStart(2, "0"), 132, "#fff", 16);
+  // 第一行：分数 / 关卡 / 火力
+  label("HI", 12, 7); val(String(hiscore).padStart(6, "0"), 12, 21, "#f5c542", 13);
+  label("1P", 88, 7); val(String(score1).padStart(6, "0"), 88, 21, "#e8e8ee", 13);
+  if (gameMode === "2p") { label("2P", 164, 7); val(String(score2).padStart(6, "0"), 164, 21, "#45b545", 13); }
+  label("关卡", 240, 7); val(String(stage).padStart(2, "0"), 240, 21, "#fff", 14);
   // 火力等级（星道具升级 1-4）
   ctx.fillStyle = "#f5c542"; ctx.font = "bold 13px 'Microsoft YaHei',monospace";
-  ctx.fillText("火力 Lv " + (players[0] ? players[0].level : 1), x0 + 16, 152);
-  if (gameMode === "2p" && players[1]) { ctx.fillStyle = "#45b545"; ctx.fillText("P2 Lv " + players[1].level, x0 + 16, 168); }
-  label("敌机", 190);
-  val(String(enemiesRemaining).padStart(2, "0"), 206, "#fff", 14);
-  for (let i = 0; i < Math.min(10, enemiesRemaining); i++) {
-    const ix = x0 + 14 + (i % 5) * 16, iy = 228 + Math.floor(i / 5) * 16;
-    drawTank(ix, iy, DOWN, "#8f8f9a", 14, 0, 1);
-  }
-  div(266);
-  label("1P", 276);
-  for (let i = 0; i < Math.min(7, lives1); i++) drawTank(x0 + 14 + i * 17, 290, UP, "#f7c632", 14, 0);
-  if (gameMode === "2p") {
-    label("2P", 318);
-    for (let i = 0; i < Math.min(7, lives2); i++) drawTank(x0 + 14 + i * 17, 332, UP, "#45b545", 14, 0);
-  }
+  ctx.fillText("火力 Lv " + (players[0] ? players[0].level : 1), 292, 20);
+  if (gameMode === "2p" && players[1]) { ctx.fillStyle = "#45b545"; ctx.fillText("P2 Lv " + players[1].level, 356, 20); }
+  // 右上角：暂停/静音状态
+  ctx.textAlign = "right";
   ctx.fillStyle = "#5a5a66"; ctx.font = "11px 'Microsoft YaHei',monospace";
-  ctx.fillText("P1: WASD+空格", x0 + 12, 362);
-  if (gameMode === "2p") ctx.fillText("P2: 方向键+.", x0 + 12, 378);
-  ctx.fillText(muted ? "已静音 (M)" : "P 暂停 · M 静音", x0 + 12, 394);
+  ctx.fillText(muted ? "已静音 M" : "P 暂停 · M 静音", W - 12, 22);
+  ctx.textAlign = "left";
+  // 分隔线
+  ctx.fillStyle = "#26262e"; ctx.fillRect(12, 36, W - 24, 1);
+
+  // 第二行：敌机 / 生命
+  label("敌机", 12, 42);
+  val(String(enemiesRemaining).padStart(2, "0"), 36, 42, "#fff", 14);
+  for (let i = 0; i < Math.min(10, enemiesRemaining); i++) drawTank(56 + i * 15, 43, DOWN, "#8f8f9a", 14, 0, 1);
+
+  label("1P", 214, 42);
+  for (let i = 0; i < Math.min(7, lives1); i++) drawTank(236 + i * 16, 43, UP, "#f7c632", 14, 0);
+  if (gameMode === "2p") {
+    label("2P", 356, 42);
+    for (let i = 0; i < Math.min(7, lives2); i++) drawTank(378 + i * 16, 43, UP, "#45b545", 14, 0);
+  }
   ctx.textAlign = "start";
 }
 
 // 信息覆盖层（黑色半透明 + 文字）
 function drawOverlayText(lines, bigFirst){
-  ctx.fillStyle = "rgba(0,0,0,0.72)"; ctx.fillRect(0, 0, HUD_X, H);
+  ctx.fillStyle = "rgba(0,0,0,0.72)"; ctx.fillRect(0, TOPBAR_H, W, FIELD_PX);
   ctx.textAlign = "center";
-  let y = H / 2 - lines.length * 26;
+  let y = TOPBAR_H + FIELD_PX / 2 - lines.length * 26;
   for (let i = 0; i < lines.length; i++) {
     const [txt, size, color] = lines[i];
     ctx.font = "bold " + (size || 26) + "px 'Microsoft YaHei',sans-serif";
     ctx.fillStyle = color || "#fff";
-    ctx.fillText(txt, HUD_X / 2, y + i * 52);
+    ctx.fillText(txt, W / 2, y + i * 52);
   }
   ctx.textAlign = "start";
 }
@@ -1295,11 +1297,11 @@ function drawGameOver(){
   drawOverlayText([["GAME OVER", 40, "#ff5a5a"],
     ["得分 " + score1 + (gameMode === "2p" ? "  ·  " + score2 : ""), 18, "#e8e8ee"]]);
   // 返回首页按钮（可点击，手机也可点）
-  const bw = 168, bh = 46, bx = HUD_X / 2 - bw / 2, by = 300;
+  const bw = 168, bh = 46, bx = W / 2 - bw / 2, by = TOPBAR_H + FIELD_PX / 2 + 92;
   rr(bx, by, bw, bh, 23); ctx.fillStyle = "#f5c542"; ctx.fill();
   ctx.fillStyle = "#141419"; ctx.font = "bold 20px 'Microsoft YaHei',sans-serif";
   ctx.textAlign = "center"; ctx.textBaseline = "middle";
-  ctx.fillText("返回首页", HUD_X / 2, by + bh / 2);
+  ctx.fillText("返回首页", W / 2, by + bh / 2);
   ctx.textAlign = "start"; ctx.textBaseline = "alphabetic";
 }
 
@@ -1327,10 +1329,11 @@ function pill(x, y, w, h, c1, c2, r){
   rr(x, y, w, h, r); ctx.stroke();
 }
 // 首页关卡格子的位置（与点击命中区保持一致）
+const TITLE_OY = 56; // 首页内容整体下移量（画布变高后垂直居中）
 function stageRect(i){
   const cols = 6, w = 40, h = 40, gap = 8;
   const x0 = W / 2 - (cols * w + (cols - 1) * gap) / 2;
-  const y0 = 238;
+  const y0 = 238 + TITLE_OY;
   return { x: x0 + (i % cols) * (w + gap), y: y0 + Math.floor(i / cols) * (h + 8), w, h };
 }
 function drawTitle(){
@@ -1340,6 +1343,8 @@ function drawTitle(){
   const glow = ctx.createRadialGradient(CX, 70, 10, CX, 70, 300);
   glow.addColorStop(0, "rgba(245,197,66,.12)"); glow.addColorStop(1, "rgba(245,197,66,0)");
   ctx.fillStyle = glow; ctx.fillRect(0, 0, W, H);
+  ctx.save();
+  ctx.translate(0, TITLE_OY);
   ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
 
   // 主标题（渐变 + 微发光，拟物感）
@@ -1395,6 +1400,7 @@ function drawTitle(){
   drawTank(Math.max(titleTankX, 0), 376, RIGHT, "#f5c542", TANK_SIZE, 0);
   drawTank(W - 40, 372, UP, "#45b545", TANK_SIZE, 0);
   ctx.textAlign = "start";
+  ctx.restore();
 }
 
 function render(){
@@ -1420,7 +1426,7 @@ canvas.addEventListener("click", e => {
   const my = (e.clientY - rect.top) * (H / rect.height);
   if (state === "title") {
     // 模式按钮
-    if (my > 146 && my < 190) {
+    if (my > 146 + TITLE_OY && my < 190 + TITLE_OY) {
       const btnW = 210, btnGap = 16, bx1 = W / 2 - btnW - btnGap / 2, bx2 = W / 2 + btnGap / 2;
       if (mx > bx1 && mx < bx1 + btnW) startGame("1p", selectedStage);
       else if (mx > bx2 && mx < bx2 + btnW) startGame("2p", selectedStage);
@@ -1432,7 +1438,7 @@ canvas.addEventListener("click", e => {
     }
   } else if (state === "gameover" && goTimer <= 0) {
     // 返回首页按钮
-    const bw = 168, bh = 46, bx = HUD_X / 2 - bw / 2, by = 300;
+    const bw = 168, bh = 46, bx = W / 2 - bw / 2, by = TOPBAR_H + FIELD_PX / 2 + 92;
     if (mx > bx && mx < bx + bw && my > by && my < by + bh) state = "title";
   }
 });
