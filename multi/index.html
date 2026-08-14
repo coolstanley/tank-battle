@@ -1587,8 +1587,43 @@ function onNetMessage(e){
     SFX.stageStart();
   }
 }
-function codeEncode(sdp){ try { return btoa(sdp); } catch(e){ return btoa(unescape(encodeURIComponent(sdp))); } }
-function codeDecode(code){ try { return atob(code); } catch(e){ return decodeURIComponent(escape(atob(code))); } }
+// —— 房间码/回执码压缩：deflate + base64（前缀 Z=已压缩 / P=未压缩 fallback）——
+function bytesToBase64(bytes){
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  }
+  return btoa(bin);
+}
+function base64ToBytes(b64){
+  const bin = atob(b64), bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+async function codeEncode(sdp){
+  if (typeof CompressionStream !== "undefined" && typeof TextEncoder !== "undefined") {
+    try {
+      const cs = new CompressionStream("deflate");
+      const w = cs.writable.getWriter();
+      w.write(new TextEncoder().encode(sdp)); w.close();
+      const buf = await new Response(cs.readable).arrayBuffer();
+      return "Z" + bytesToBase64(new Uint8Array(buf));
+    } catch(e){}
+  }
+  try { return "P" + btoa(sdp); } catch(e){ return "P" + btoa(unescape(encodeURIComponent(sdp))); }
+}
+async function codeDecode(code){
+  if (code && code[0] === "Z" && typeof DecompressionStream !== "undefined") {
+    try {
+      const ds = new DecompressionStream("deflate");
+      const w = ds.writable.getWriter();
+      w.write(base64ToBytes(code.slice(1))); w.close();
+      return await new Response(ds.readable).text();
+    } catch(e){}
+  }
+  const body = code && (code[0] === "P" || code[0] === "Z") ? code.slice(1) : code;
+  try { return atob(body); } catch(e){ return decodeURIComponent(escape(atob(body))); }
+}
 function waitIce(pc){
   return new Promise(res => {
     if (pc.iceGatheringState === "complete") return res();
@@ -1624,8 +1659,8 @@ function netCreate(){
   $("hostPanel").classList.add("show");
   $("joinPanel").classList.remove("show");
   setNetStatus("正在生成房间码…");
-  netPC.createOffer().then(o => netPC.setLocalDescription(o)).then(() => waitIce(netPC)).then(() => {
-    $("hostCode").value = codeEncode(netPC.localDescription.sdp);
+  netPC.createOffer().then(o => netPC.setLocalDescription(o)).then(() => waitIce(netPC)).then(async () => {
+    $("hostCode").value = await codeEncode(netPC.localDescription.sdp);
     setNetStatus("房间码已生成，复制发给对方");
   }).catch(e => setNetStatus("创建失败：" + e.message));
 }
@@ -1635,26 +1670,28 @@ function netJoinEntry(){
   $("joinPanel").classList.add("show");
   setNetStatus("粘贴对方的房间码，然后点连接");
 }
-function netJoin(){
+async function netJoin(){
   const code = $("joinCode").value.trim();
   if (!code) { setNetStatus("请先粘贴对方的房间码"); return; }
-  let offer; try { offer = { type:"offer", sdp: codeDecode(code) }; } catch(e){ setNetStatus("房间码无效"); return; }
+  let sdp;
+  try { sdp = await codeDecode(code); } catch(e){ setNetStatus("房间码无效"); return; }
   try { netPC = new RTCPeerConnection(); } catch(e){ setNetStatus("此浏览器不支持 WebRTC"); return; }
   netRole = "peer";
   netPC.ondatachannel = e => setupDC(e.channel);
   setNetStatus("正在连接…");
-  netPC.setRemoteDescription(offer).then(() => netPC.createAnswer())
-    .then(a => netPC.setLocalDescription(a)).then(() => waitIce(netPC)).then(() => {
-      $("joinAnswer").value = codeEncode(netPC.localDescription.sdp);
+  netPC.setRemoteDescription({ type:"offer", sdp }).then(() => netPC.createAnswer())
+    .then(a => netPC.setLocalDescription(a)).then(() => waitIce(netPC)).then(async () => {
+      $("joinAnswer").value = await codeEncode(netPC.localDescription.sdp);
       setNetStatus("回执码已生成，复制发回给主机");
     }).catch(e => setNetStatus("加入失败：" + e.message));
 }
-function netAccept(){
+async function netAccept(){
   const code = $("hostAnswer").value.trim();
   if (!code) { setNetStatus("请先粘贴对方的回执码"); return; }
-  let answer; try { answer = { type:"answer", sdp: codeDecode(code) }; } catch(e){ setNetStatus("回执码无效"); return; }
+  let sdp;
+  try { sdp = await codeDecode(code); } catch(e){ setNetStatus("回执码无效"); return; }
   setNetStatus("正在连接…");
-  netPC.setRemoteDescription(answer).catch(e => setNetStatus("连接失败：" + e.message));
+  netPC.setRemoteDescription({ type:"answer", sdp }).catch(e => setNetStatus("连接失败：" + e.message));
 }
 function setNetStatus(t){ $("netStatus").textContent = t; }
 function openNetModal(){
