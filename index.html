@@ -25,6 +25,10 @@
     font-size:20px;font-weight:bold;pointer-events:auto;touch-action:none;}
   #tfire:active{background:rgba(255,120,40,.7);}
   #hint{color:#666;font-size:12px;margin-top:8px;text-align:center;}
+  #tmusic{position:fixed;top:12px;right:12px;width:38px;height:38px;border-radius:50%;padding:0;
+    border:1px solid #555;background:rgba(0,0,0,.5);color:#ffd23d;font-size:20px;line-height:1;
+    cursor:pointer;z-index:20;font-family:serif;}
+  #tmusic.off{color:#888;opacity:.55;text-decoration:line-through;}
 </style>
 </head>
 <body>
@@ -40,13 +44,14 @@
   </div>
   <button id="tfire">开火</button>
 </div>
+<button id="tmusic" aria-label="背景音乐开关" title="背景音乐开关 (N)">♪</button>
 <script>
 "use strict";
 /* ================================================================
    坦克大战 Battle City —— 单文件小游戏
    玩法：保护你的基地（老鹰），消灭全部敌军坦克。
    P1：WASD 移动 / 空格 开火    P2：方向键 移动 / . 或 数字键盘0 开火
-   单人模式方向键也可操作 P1；Enter 开始，1 双人开始，P 暂停，M 静音。
+   单人模式方向键也可操作 P1；Enter 开始，1 双人开始，P 暂停，M 静音，N 音乐开关。
    ================================================================ */
 const $ = id => document.getElementById(id);
 const canvas = $('c'), ctx = canvas.getContext('2d');
@@ -320,6 +325,28 @@ const SFX = {
   over:    () => { beep(400,300,.25); beep(300,220,.25,0,.3); beep(220,140,.5,0,.6); }
 };
 
+// ============ 背景音乐（Web Audio 合成，16步循环，无外部文件） ============
+// 旋律 C 大调五声音阶舞曲风；主旋律方波 + 低音三角波。可通过 N 键 / 右上角♪按钮开关，M 是全部静音。
+const MUSIC = {
+  tempo: 140, // BPM，每拍 60/140 秒；下面每个音符占半拍（8分音符）
+  melody: [523.25,659.25,783.99,659.25, 523.25,659.25,783.99,0,
+           880,783.99,659.25,783.99, 698.46,659.25,587.33,0],
+  bass:   [130.81,0,196,0, 130.81,0,196,0, 174.61,0,130.81,0, 196,0,130.81,0]
+};
+let musicOn = true, musicStep = 0, musicAcc = 0;
+function tickMusic(dt){
+  musicAcc += dt;
+  const stepDur = 60 / MUSIC.tempo / 2;
+  while (musicAcc >= stepDur) {
+    musicAcc -= stepDur;
+    const s = musicStep % 16; musicStep++;
+    if (!musicOn || muted) continue; // 关音乐/静音时不发声，但进度继续走
+    const m = MUSIC.melody[s], b = MUSIC.bass[s];
+    if (m) beep(m, m, 0.13, "square", 0.03);
+    if (b) beep(b, b, 0.2, "triangle", 0.05);
+  }
+}
+
 // ============ 输入 ============
 const keys = {};
 const touchKeys = { up:false, down:false, left:false, right:false, fire:false };
@@ -346,6 +373,11 @@ const isTouch = ("ontouchstart" in window) || (navigator.maxTouchPoints > 0);
 function syncTouchPad(){ // 触控面板只在战斗中显示
   $("touch").classList.toggle("visible", isTouch && (state === "play" || state === "stageclear"));
 }
+
+// 音乐开关（右上角 ♪ 按钮 / 键盘 N 键；M 键是静音全部）
+function setMusicUI(){ $("tmusic").classList.toggle("off", !musicOn); }
+$("tmusic").addEventListener("click", () => { musicOn = !musicOn; setMusicUI(); });
+setMusicUI();
 
 const pressed = {
   p1: { up:false, down:false, left:false, right:false, fire:false },
@@ -1158,11 +1190,12 @@ function drawTitle(){
 
   ctx.textBaseline = "alphabetic";
   ctx.fillStyle = "#aaa"; ctx.font = "13px 'Microsoft YaHei',sans-serif";
-  ctx.fillText("保护你的老鹰基地，消灭全部敌军！", CX, 300);
-  ctx.fillText("P1: WASD 移动 + 空格开火", CX, 324);
-  ctx.fillText("双人: P2 用方向键 + . 开火", CX, 344);
+  ctx.fillText("保护你的老鹰基地，消灭全部敌军！", CX, 298);
+  ctx.fillText("P1: WASD 移动 + 空格开火", CX, 318);
+  ctx.fillText("双人: P2 用方向键 + . 开火", CX, 338);
+  ctx.fillText("P 暂停 · M 静音 · N 音乐开关", CX, 358);
   ctx.fillStyle = "#6fb3ff";
-  if (Math.floor(elapsed * 2) % 2 === 0) ctx.fillText("点击按钮或按 Enter 开始", CX, 372);
+  if (Math.floor(elapsed * 2) % 2 === 0) ctx.fillText("点击按钮或按 Enter 开始", CX, 378);
 
   // 标题上的小坦克巡游（滚入底部可见区域）
   titleTankX += 40 * 0.016;
@@ -1216,6 +1249,7 @@ window.addEventListener("keydown", e => {
     if (code === "Enter") { loadStage(); state = "play"; }
   }
   if (code === "KeyM") muted = !muted;
+  else if (code === "KeyN") { musicOn = !musicOn; setMusicUI(); }
 });
 
 // ============ 主循环 ============
@@ -1226,8 +1260,8 @@ function loop(ts){
   let dt = (ts - last) / 1000; last = ts;
   if (dt > 0.05) dt = 0.05;
   if (dt < 0) dt = 0; // 防御：时间戳回退（如系统时钟调整）
-  if (state === "play" && !paused) update(dt);
-  else if (state === "stageclear") { clearTimer -= dt; if (clearTimer <= 0) { loadStage(); state = "play"; } }
+  if (state === "play" && !paused) { update(dt); tickMusic(dt); }
+  else if (state === "stageclear") { clearTimer -= dt; if (clearTimer <= 0) { loadStage(); state = "play"; } tickMusic(dt); }
   else if (state === "gameover") { goTimer -= dt; }
   if (state === "title") elapsed += dt;
   syncTouchPad();
