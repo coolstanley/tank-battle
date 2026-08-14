@@ -631,8 +631,7 @@ function handleBulletHit(b){
     for (const e of enemies) {
       if (!e.alive) continue;
       if (rectOverlap(b.x - 3, b.y - 3, 6, 6, e.x, e.y, TANK_SIZE, TANK_SIZE)) {
-        if (e.etype === 3 && b.power < 2) { b.alive = false; return true; } // 装甲免疫普通弹
-        e.hp--;
+        e.hp -= (e.etype === 3 && b.power >= 2) ? 2 : 1; // 装甲：普通弹-1、强化弹-2（不再完全免疫，避免无法击杀卡关）
         spawnExplosion(e.x + TANK_SIZE / 2, e.y + TANK_SIZE / 2, false);
         if (e.hp <= 0) killEnemy(e, b.pidx);
         b.alive = false; return true;
@@ -827,7 +826,7 @@ function finishSpawn(ind){
   const etype = enemyTypeFor(enemiesSpawned);
   const flash = (enemiesSpawned + 1) % 5 === 0;
   const e = makeEnemy(c * TILE, r * TILE, etype, flash);
-  if (flash) e.flashIdx = enemiesSpawned;
+  if (flash) e.flashIdx = Math.floor(enemiesSpawned / 5); // 第几个掉落（0起），让 POW_SEQ[0]=star 先掉
   enemies.push(e);
   enemiesSpawned++;
 }
