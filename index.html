@@ -95,8 +95,9 @@ const FIELD = COLS * TILE;            // 416 —— 逻辑战场尺寸（网格/
 const TOPBAR_H = 72;                  // 顶部信息栏高度
 const FIELD_PX = 520;                 // 战场渲染像素尺寸（等比例放大显示）
 const SCALE = FIELD_PX / FIELD;       // 1.25 —— 渲染缩放系数
-const W = FIELD_PX, H = TOPBAR_H + FIELD_PX;   // 520 x 592
-canvas.width = W; canvas.height = H;
+const W = FIELD_PX, H = TOPBAR_H + FIELD_PX;   // 520 x 592（逻辑坐标）
+const RES = 2;                          // 渲染分辨率倍率 → 物理像素 1040×1184 ≈ 1080p
+canvas.width = W * RES; canvas.height = H * RES;
 
 // 方向
 const UP = 0, RIGHT = 1, DOWN = 2, LEFT = 3;
@@ -1408,6 +1409,7 @@ function drawTitle(){
 }
 
 function render(){
+  ctx.setTransform(RES, 0, 0, RES, 0, 0);
   if (state === "title") { drawTitle(); return; }
   drawPlayfield();
   drawHUD();
