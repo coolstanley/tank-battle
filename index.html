@@ -991,24 +991,17 @@ function shade(hex, f){
   return "rgb(" + r + "," + g + "," + b + ")";
 }
 
-// ===== 俯视立体绘制工具 =====
-// 俯视长方体：顶面 (x,y,w,d) + 南侧前侧面 (x, y+d, w, h)，物体向下凸出厚度（模拟从上方略偏南看）
+// ===== 直视俯视绘制工具 =====
+// 直视（正俯视）：只画顶面，无侧面倾斜。h/front 参数保留兼容旧调用，但不再产生侧面
 function block(x, y, w, d, h, top, front){
-  ctx.fillStyle = front;
-  ctx.fillRect(x, y + d, w, h);
   ctx.fillStyle = top;
   ctx.fillRect(x, y, w, d);
   ctx.strokeStyle = "rgba(0,0,0,.28)"; ctx.lineWidth = 1;
-  ctx.strokeRect(x + 0.5, y + 0.5, w - 1, d + h - 1);
+  ctx.strokeRect(x + 0.5, y + 0.5, w - 1, d - 1);
 }
 
 function drawTank(x, y, dir, color, size, invincible, variant){
   const s = size || TANK_SIZE;
-  // 底部厚度（俯视下的立体侧面，不随朝向旋转）
-  if (s >= 20) {
-    ctx.fillStyle = shade(color, 0.42);
-    ctx.fillRect(x, y + s, s, 6);
-  }
   ctx.save();
   ctx.translate(Math.round(x + s / 2), Math.round(y + s / 2));
   ctx.rotate(dir * Math.PI / 2);
