@@ -9,25 +9,28 @@
     background:#0b0b12;
     font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;
     display:flex;flex-direction:column;align-items:center;justify-content:center;user-select:none;-webkit-user-select:none;}
-  #wrap{position:relative;}
+  #wrap{position:relative;margin-top:-14px;}
   canvas{image-rendering:pixelated;image-rendering:crisp-edges;background:#000;
     border:1px solid #26262e;border-radius:10px;
     box-shadow:0 8px 28px rgba(0,0,0,.5);
     width:min(97vw, calc((100vh - 130px) * 1.423), calc((100dvh - 130px) * 1.423));height:auto;max-width:100%;}
   #touch{display:none;position:fixed;left:0;right:0;bottom:12px;height:200px;z-index:10;
-    pointer-events:none;justify-content:space-between;align-items:center;padding:0 7vw;}
+    pointer-events:none;justify-content:space-between;align-items:center;padding:0 6vw 0 3vw;}
   #touch.visible{display:flex;}
   .dpad{position:relative;width:196px;height:196px;pointer-events:none;}
   .dbtn{position:absolute;width:68px;height:68px;border:2px solid rgba(255,255,255,.22);
-    border-radius:10px;background:rgba(255,255,255,.12);
-    color:#fff;font-size:30px;pointer-events:auto;touch-action:none;font-weight:bold;}
-  .dbtn:active{background:rgba(255,220,80,.5);}
+    border-radius:10px;background:linear-gradient(180deg,rgba(255,255,255,.20),rgba(255,255,255,.08));
+    color:#fff;font-size:30px;pointer-events:auto;touch-action:none;font-weight:bold;
+    box-shadow:inset 0 2px 0 rgba(255,255,255,.22), inset 0 -3px 0 rgba(0,0,0,.28), 0 3px 8px rgba(0,0,0,.4);}
+  .dbtn:active{background:linear-gradient(180deg,rgba(255,220,80,.6),rgba(255,180,40,.4));
+    box-shadow:inset 0 3px 0 rgba(0,0,0,.3);}
   .d-up{top:0;left:64px;} .d-down{bottom:0;left:64px;}
   .d-left{top:64px;left:0;} .d-right{top:64px;right:0;}
-  #tfire{width:100px;height:100px;border-radius:50%;border:2px solid rgba(255,255,255,.22);
-    background:rgba(255,120,50,.35);
-    color:#fff;font-size:22px;font-weight:bold;pointer-events:auto;touch-action:none;}
-  #tfire:active{background:rgba(255,170,80,.6);}
+  #tfire{width:100px;height:100px;border-radius:50%;border:2px solid rgba(255,255,255,.24);
+    background:radial-gradient(circle at 50% 32%, rgba(255,150,70,.6), rgba(255,80,35,.4));
+    color:#fff;font-size:22px;font-weight:bold;pointer-events:auto;touch-action:none;
+    box-shadow:inset 0 2px 0 rgba(255,255,255,.25), inset 0 -4px 0 rgba(0,0,0,.3), 0 4px 14px rgba(0,0,0,.45);}
+  #tfire:active{background:radial-gradient(circle at 50% 32%, rgba(255,180,90,.75), rgba(255,100,50,.55));}
   #hint{color:#666;font-size:12px;margin-top:8px;text-align:center;}
   /* 右上角控制按钮组：暂停 / 音乐 / 音效（图标全用 CSS 手绘，不用 emoji） */
   #ctrls{position:fixed;top:10px;right:10px;z-index:20;display:flex;flex-direction:column;gap:8px;}
@@ -1275,6 +1278,18 @@ function rr(x, y, w, h, r){
   ctx.arcTo(x, y, x + w, y, r);
   ctx.closePath();
 }
+// 拟物胶囊/圆角按钮：渐变 + 顶部高光 + 描边
+function pill(x, y, w, h, c1, c2, r){
+  r = r == null ? h / 2 : r;
+  const g = ctx.createLinearGradient(0, y, 0, y + h);
+  g.addColorStop(0, c1); g.addColorStop(1, c2);
+  rr(x, y, w, h, r); ctx.fillStyle = g; ctx.fill();
+  const hl = ctx.createLinearGradient(0, y, 0, y + h * 0.6);
+  hl.addColorStop(0, "rgba(255,255,255,.30)"); hl.addColorStop(1, "rgba(255,255,255,0)");
+  rr(x, y, w, h, r); ctx.fillStyle = hl; ctx.fill();
+  ctx.strokeStyle = "rgba(0,0,0,.25)"; ctx.lineWidth = 1;
+  rr(x, y, w, h, r); ctx.stroke();
+}
 // 首页关卡格子的位置（与点击命中区保持一致）
 function stageRect(i){
   const cols = 6, w = 40, h = 40, gap = 8;
@@ -1285,11 +1300,19 @@ function stageRect(i){
 function drawTitle(){
   ctx.fillStyle = "#0b0b12"; ctx.fillRect(0, 0, W, H);
   const CX = W / 2;
+  // 标题背后的氛围光晕
+  const glow = ctx.createRadialGradient(CX, 70, 10, CX, 70, 300);
+  glow.addColorStop(0, "rgba(245,197,66,.12)"); glow.addColorStop(1, "rgba(245,197,66,0)");
+  ctx.fillStyle = glow; ctx.fillRect(0, 0, W, H);
   ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
 
-  // 主标题
-  ctx.fillStyle = "#f5c542"; ctx.font = "bold 50px 'Microsoft YaHei',sans-serif";
-  ctx.fillText("坦克大战", CX, 78);
+  // 主标题（渐变 + 微发光，拟物感）
+  const tg = ctx.createLinearGradient(0, 44, 0, 84);
+  tg.addColorStop(0, "#ffe08a"); tg.addColorStop(0.5, "#f5c542"); tg.addColorStop(1, "#d99b1e");
+  ctx.font = "bold 50px 'Microsoft YaHei',sans-serif";
+  ctx.shadowColor = "rgba(245,197,66,.35)"; ctx.shadowBlur = 14;
+  ctx.fillStyle = tg; ctx.fillText("坦克大战", CX, 78);
+  ctx.shadowBlur = 0;
   // 副标题 + 两侧装饰线
   ctx.fillStyle = "#5aa0e0"; ctx.font = "bold 13px monospace";
   const sub = "BATTLE CITY", sw = ctx.measureText(sub).width;
@@ -1298,12 +1321,12 @@ function drawTitle(){
   ctx.fillRect(CX - sw / 2 - 42, 110, 30, 1);
   ctx.fillRect(CX + sw / 2 + 12, 110, 30, 1);
 
-  // 模式按钮（胶囊）
+  // 模式按钮（拟物胶囊）
   ctx.font = "bold 20px 'Microsoft YaHei',sans-serif";
   ctx.textBaseline = "middle";
-  rr(78, 146, 210, 44, 22); ctx.fillStyle = "#f5c542"; ctx.fill();
+  pill(78, 146, 210, 44, "#ffd94a", "#d99b1e");
   ctx.fillStyle = "#141419"; ctx.fillText("1 人游戏", 183, 169);
-  rr(304, 146, 210, 44, 22); ctx.fillStyle = "#45b545"; ctx.fill();
+  pill(304, 146, 210, 44, "#5fd05f", "#2f8f2f");
   ctx.fillStyle = "#0e1410"; ctx.fillText("双人对战", 409, 169);
 
   // 关卡选择
@@ -1312,9 +1335,14 @@ function drawTitle(){
   ctx.fillText("选 择 关 卡", CX, 222);
   for (let i = 0; i < STAGES.length; i++) {
     const r = stageRect(i), sel = (i + 1 === selectedStage);
-    rr(r.x, r.y, r.w, r.h, 9);
-    if (sel) { ctx.fillStyle = "#f5c542"; ctx.fill(); ctx.fillStyle = "#141419"; }
-    else { ctx.fillStyle = "#1a1a22"; ctx.fill(); ctx.strokeStyle = "#2e2e3a"; ctx.lineWidth = 1; ctx.stroke(); ctx.fillStyle = "#9a9aa6"; }
+    if (sel) {
+      pill(r.x, r.y, r.w, r.h, "#ffd94a", "#d99b1e", 9);
+      ctx.fillStyle = "#141419";
+    } else {
+      rr(r.x, r.y, r.w, r.h, 9); ctx.fillStyle = "#1a1a22"; ctx.fill();
+      ctx.strokeStyle = "#2e2e3a"; ctx.lineWidth = 1; ctx.stroke();
+      ctx.fillStyle = "#9a9aa6";
+    }
     ctx.font = "bold 16px monospace"; ctx.textBaseline = "middle";
     ctx.fillText(String(i + 1), r.x + r.w / 2, r.y + r.h / 2 + 1);
     ctx.textBaseline = "alphabetic";
