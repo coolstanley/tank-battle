@@ -992,16 +992,32 @@ function shade(hex, f){
 }
 
 // ===== 直视俯视绘制工具 =====
-// 直视（正俯视）：只画顶面，无侧面倾斜。h/front 参数保留兼容旧调用，但不再产生侧面
+// 投影阴影：物体立在地面上，向右下投软阴影（模拟左上光源）
+function dropShadow(x, y, w, h, o){
+  o = o || 3;
+  ctx.fillStyle = "rgba(0,0,0,0.16)";
+  ctx.beginPath(); ctx.ellipse(x + w / 2 + o, y + h / 2 + o, w / 2 + 2, h / 2 + 2, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = "rgba(0,0,0,0.24)";
+  ctx.beginPath(); ctx.ellipse(x + w / 2 + o, y + h / 2 + o, w / 2, h / 2, 0, 0, 7); ctx.fill();
+}
+// 直视（正俯视）立体块：投影 + 顶面 + 左上高光/右下暗边（浮雕凸起感）
 function block(x, y, w, d, h, top, front){
+  dropShadow(x, y, w, d);
   ctx.fillStyle = top;
   ctx.fillRect(x, y, w, d);
+  ctx.fillStyle = "rgba(255,255,255,.16)";
+  ctx.fillRect(x, y, w, 2);                 // 顶边高光
+  ctx.fillRect(x, y, 2, d);                 // 左边高光
+  ctx.fillStyle = "rgba(0,0,0,.22)";
+  ctx.fillRect(x, y + d - 2, w, 2);         // 底边暗
+  ctx.fillRect(x + w - 2, y, 2, d);         // 右边暗
   ctx.strokeStyle = "rgba(0,0,0,.28)"; ctx.lineWidth = 1;
   ctx.strokeRect(x + 0.5, y + 0.5, w - 1, d - 1);
 }
 
 function drawTank(x, y, dir, color, size, invincible, variant){
   const s = size || TANK_SIZE;
+  if (s >= 20) dropShadow(x, y, s, s);   // 坦克投影（不随朝向旋转）
   ctx.save();
   ctx.translate(Math.round(x + s / 2), Math.round(y + s / 2));
   ctx.rotate(dir * Math.PI / 2);
@@ -1117,7 +1133,7 @@ function drawIceTile(c, r){
 }
 function drawTreeTile(c, r){
   const x = c * TILE, y = r * TILE;
-  block(x + 13, y + 13, 6, 6, 8, "#6b4a2a", "#4a3018");   // 树干
+  dropShadow(x + 2, y + 2, 28, 28);                        // 树冠投影
   ctx.fillStyle = "#2f7a33";                              // 树冠（俯视正圆）
   ctx.beginPath(); ctx.arc(x + 16, y + 16, 15, 0, 7); ctx.fill();
   ctx.fillStyle = "#3f9a44";
