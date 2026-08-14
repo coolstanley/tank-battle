@@ -410,7 +410,7 @@ let map = [], brickMask = [];
 let score1 = 0, score2 = 0, hiscore = 0;
 let lives1 = 3, lives2 = 3;
 let bonusLv1 = 0, bonusLv2 = 0;   // 满500分加命
-let enemiesRemaining = 15, enemiesSpawned = 0;
+let enemiesTotal = 12, enemiesRemaining = 12, enemiesSpawned = 0;
 let players = [], enemies = [], bullets = [], powerups = [];
 let explosions = [], floaters = [], spawnIndicators = [];
 let spawnTimer = 0, spawnCycle = 0, MAX_ON_FIELD = 4;
@@ -634,12 +634,12 @@ function killEnemy(e, pidx){
   SFX.explode();
   addScore(pidx, cfg.points);
   floaters.push({ x: e.x + TANK_SIZE / 2, y: e.y, txt: "+" + cfg.points, t: 0, dur: 0.8 });
-  enemiesRemaining--;
+  enemiesRemaining = Math.max(0, enemiesRemaining - 1);
   if (e.flash) {
     const type = POW_SEQ[Math.floor(e.flashIdx % POW_SEQ.length)];
     spawnPowerup(e.x, e.y, type);
   }
-  if (enemiesRemaining <= 0 && enemies.every(ee => !ee.alive)) stageClear();
+  if (enemiesSpawned >= enemiesTotal && enemies.every(ee => !ee.alive)) stageClear();
 }
 function killPlayer(p){
   bullets = bullets.filter(b => !(b.kind === "player" && b.pidx === p.idx)); // 该玩家的子弹随之消失
@@ -681,10 +681,10 @@ function applyPower(p, type){
       spawnExplosion(e.x + TANK_SIZE / 2, e.y + TANK_SIZE / 2, false);
       addScore(p.idx, cfg.points);
       e.alive = false;
-      enemiesRemaining--;
+      enemiesRemaining = Math.max(0, enemiesRemaining - 1);
     }
     SFX.explode();
-    if (enemiesRemaining <= 0 && enemies.every(ee => !ee.alive)) stageClear();
+    if (enemiesSpawned >= enemiesTotal && enemies.every(ee => !ee.alive)) stageClear();
   }
   SFX.powerup();
 }
@@ -752,7 +752,7 @@ function enemyTypeFor(n){
 
 // ============ 出生逻辑 ============
 function updateSpawning(dt){
-  if (stageIntro > 0 || enemiesRemaining <= 0) return;
+  if (stageIntro > 0 || enemiesSpawned >= enemiesTotal) return; // 配额敌机全部生成后停止
   const onField = enemies.filter(e => e.alive).length;
   if (onField >= MAX_ON_FIELD) return;
   spawnTimer -= dt;
@@ -769,6 +769,7 @@ function updateSpawning(dt){
   }
 }
 function finishSpawn(ind){
+  if (enemiesSpawned >= enemiesTotal) { ind.done = true; return; } // 配额已满：丢弃多余的出生指示
   const c = Math.round(ind.x / TILE), r = Math.round(ind.y / TILE);
   // 出生点被坦克占住时稍后再试，避免重叠；重试太多次就强制生成
   if (tankBlockedAt(null, c * TILE + 2, r * TILE + 2)) {
@@ -800,7 +801,8 @@ function loadStage(){
   stage++;
   enemies = []; bullets = []; powerups = []; explosions = []; floaters = [];
   spawnIndicators = [];
-  enemiesRemaining = Math.min(26, 12 + (stage - 1) * 2); // 敌军随关卡递增：第1关12辆，最多26辆
+  enemiesTotal = Math.min(26, 12 + (stage - 1) * 2); // 敌军随关卡递增：第1关12辆，最多26辆
+  enemiesRemaining = enemiesTotal;
   enemiesSpawned = 0;
   spawnTimer = 2.6; spawnCycle = 0;
   freezeTimer = 0; if (shieldTimer > 0) deactivateShield();
@@ -919,7 +921,7 @@ function update(dt){
   for (const f of floaters) f.t += dt;
   floaters = floaters.filter(f => f.t < f.dur);
 
-  if (enemiesRemaining <= 0 && enemies.every(e => !e.alive) && state === "play") stageClear();
+  if (enemiesSpawned >= enemiesTotal && enemies.every(e => !e.alive) && state === "play") stageClear();
 }
 function pwName(t){
   return { star:"LEVEL UP", helmet:"无敌", shovel:"基地加固", clock:"冻结敌人", grenade:"全屏轰炸", tank:"+1 命" }[t];
