@@ -401,19 +401,14 @@ document.querySelectorAll(".dbtn").forEach(b => touchBtn(b, b.dataset.k));
 touchBtn($("tfire"), "fire");
 let isTouch = ("ontouchstart" in window) || (navigator.maxTouchPoints > 0);
 let padVisible = null;
-function fitCanvas(){ // 手机端：画布尽量占满可视区（触控面板悬浮半透明覆盖，不再挤压画布）
+function fitCanvas(){ // 手机端用真实可视高度重算画布，避开 vh/100dvh 的浏览器工具栏误差
   if (!isTouch || !canvas.style) return;
-  const inPlay = (state === "play" || state === "stageclear");
-  const availH = Math.max(180, (window.innerHeight || 0) - (inPlay ? 10 : 24));
+  const padH = (state === "play" || state === "stageclear") ? 224 : 24; // 底部触控面板占用高度
+  const availH = Math.max(180, (window.innerHeight || 0) - padH);
   const availW = Math.max(180, (window.innerWidth || 0) - 6);
   const w = Math.min(availW, availH * 1.423);
   canvas.style.width = Math.floor(w) + "px";
   canvas.style.height = "auto";
-  // 战斗时画布贴顶（消除上半黑屏），触控面板覆盖底部；标题/结算页居中
-  if (document.body && document.body.style) {
-    document.body.style.justifyContent = inPlay ? "flex-start" : "center";
-    document.body.style.paddingTop = inPlay ? "6px" : "0";
-  }
 }
 window.addEventListener("resize", fitCanvas);
 window.addEventListener("orientationchange", fitCanvas);
