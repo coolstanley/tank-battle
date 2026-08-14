@@ -651,6 +651,7 @@ function handleBulletHit(b){
   if (b.kind === "player") {
     for (const e of enemies) {
       if (!e.alive) continue;
+      if (e.protect > 0) continue; // 出生保护：刚刷出的敌人不可被击中（防守出生点扫射）
       if (rectOverlap(b.x - 3, b.y - 3, 6, 6, e.x, e.y, TANK_SIZE, TANK_SIZE)) {
         e.hp -= (e.etype === 3 && b.power >= 2) ? 2 : 1; // 装甲：普通弹-1、强化弹-2（不再完全免疫，避免无法击杀卡关）
         spawnExplosion(e.x + TANK_SIZE / 2, e.y + TANK_SIZE / 2, false);
@@ -848,6 +849,7 @@ function finishSpawn(ind){
   const flash = (enemiesSpawned + 1) % 5 === 0;
   const e = makeEnemy(c * TILE, r * TILE, etype, flash);
   if (flash) e.flashIdx = Math.floor(enemiesSpawned / 5); // 第几个掉落（0起），让 POW_SEQ[0]=star 先掉
+  e.protect = 2.5; // 出生保护：刷出后短暂无敌，防玩家守出生点秒杀
   enemies.push(e);
   enemiesSpawned++;
 }
@@ -939,6 +941,7 @@ function update(dt){
   // 敌人
   for (const e of enemies) {
     if (!e.alive) continue;
+    if (e.protect > 0) e.protect -= dt; // 出生保护计时
     if (freezeTimer > 0 || e.freeze > 0) { e.freeze -= dt; continue; }
     e.cd -= dt;
     e.ai.turn -= dt;
@@ -1233,6 +1236,7 @@ function drawPlayfield(){
   for (const e of enemies) if (e.alive) {
     let col = ENEMY_TYPES[e.etype].color;
     if (e.flash && Math.floor(elapsed * 5) % 2 === 0) col = "#ffffff";
+    if (e.protect > 0 && Math.floor(elapsed * 8) % 2 === 0) col = "#ffffff"; // 出生保护闪烁
     items.push({ d: e.y + TANK_SIZE, f: () => drawTank(e.x, e.y, e.dir, col, TANK_SIZE, 0, 1) });
   }
   for (const b of bullets)
