@@ -13,7 +13,7 @@
   canvas{image-rendering:pixelated;image-rendering:crisp-edges;background:#000;
     border:1px solid #26262e;border-radius:10px;
     box-shadow:0 8px 28px rgba(0,0,0,.5);
-    width:min(97vw, calc((100vh - 130px) * 1.423), calc((100dvh - 130px) * 1.423));height:auto;max-width:100%;}
+    width:min(97vw, calc((100vh - 130px) * 1.827), calc((100dvh - 130px) * 1.827));height:auto;max-width:100%;}
   #touch{display:none;position:fixed;left:0;right:0;bottom:12px;height:200px;z-index:10;
     pointer-events:none;justify-content:space-between;align-items:center;padding:0 6vw 0 3vw;}
   #touch.visible{display:flex;}
@@ -88,10 +88,20 @@ const $ = id => document.getElementById(id);
 const canvas = $('c'), ctx = canvas.getContext('2d');
 
 const TILE = 32, COLS = 13, ROWS = 13;
-const FIELD = COLS * TILE;            // 416
+const FIELD = COLS * TILE;            // 416 —— 逻辑战场尺寸（网格/碰撞仍用 2D 坐标，不变）
 const PANEL = 176;                    // 右侧信息栏宽
-const W = FIELD + PANEL, H = FIELD;   // 592 x 416
+// 等距立体投影参数（2:1 菱形）
+const ISO_HW = 22, ISO_HH = 11;       // 单格菱形半宽/半高
+const ISO_OX = 286, ISO_OY = 96;      // 世界 (0,0) 格子的屏幕投影原点（顶部留立体高度）
+const HUD_X = 584;                    // 右侧信息栏起始 x
+const W = HUD_X + PANEL, H = 416;     // 760 x 416
 canvas.width = W; canvas.height = H;
+
+// 世界 2D 像素 (x,y) → 等距屏幕 (sx,sy)；z 为立体高度（像素，向上偏移）
+function iso(x, y, z){
+  const gx = x / TILE, gy = y / TILE;
+  return { x: ISO_OX + (gx - gy) * ISO_HW, y: ISO_OY + (gx + gy) * ISO_HH - (z || 0) };
+}
 
 // 方向
 const UP = 0, RIGHT = 1, DOWN = 2, LEFT = 3;
@@ -409,7 +419,7 @@ function fitCanvas(){ // 手机端用真实可视高度重算画布，避开 vh/
   const padH = (state === "play" || state === "stageclear") ? 224 : 24; // 底部触控面板占用高度
   const availH = Math.max(180, (window.innerHeight || 0) - padH);
   const availW = Math.max(180, (window.innerWidth || 0) - 6);
-  const w = Math.min(availW, availH * 1.423);
+  const w = Math.min(availW, availH * 1.827);
   canvas.style.width = Math.floor(w) + "px";
   canvas.style.height = "auto";
 }
@@ -989,219 +999,206 @@ function shade(hex, f){
   r = Math.min(255, Math.round(r * f)); g = Math.min(255, Math.round(g * f)); b = Math.min(255, Math.round(b * f));
   return "rgb(" + r + "," + g + "," + b + ")";
 }
+
+// ===== 等距立体绘制工具 =====
+function poly(pts, fill){
+  ctx.beginPath();
+  ctx.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+  ctx.closePath();
+  ctx.fillStyle = fill; ctx.fill();
+  ctx.strokeStyle = "rgba(0,0,0,.18)"; ctx.lineWidth = 1; ctx.stroke();
+}
+// 菱形平面
+function isoDiamond(sx, sy, hw, hh, fill){
+  poly([[sx, sy - hh], [sx + hw, sy], [sx, sy + hh], [sx - hw, sy]], fill);
+}
+// 立体方块：顶面最亮 + 左面最暗 + 右面居中（模拟左上光源）
+function isoBox(sx, sy, hw, hh, h, top, left, right){
+  const N = [sx, sy - hh], E = [sx + hw, sy], S = [sx, sy + hh], W = [sx - hw, sy];
+  const Nt = [sx, sy - hh - h], Et = [sx + hw, sy - h], St = [sx, sy + hh - h], Wt = [sx - hw, sy - h];
+  poly([Wt, St, S, W], left);
+  poly([Et, St, S, E], right);
+  poly([Nt, Et, St, Wt], top);
+}
+// 炮管屏幕方向：世界 UP/RIGHT/DOWN/LEFT → 屏幕向量
+const DIR_SX = [1, 1, -1, -1], DIR_SY = [-1, 1, 1, -1];
+
 function drawTank(x, y, dir, color, size, invincible, variant){
   const s = size || TANK_SIZE;
-  ctx.save();
-  ctx.translate(Math.round(x + s / 2), Math.round(y + s / 2));
-  ctx.rotate(dir * Math.PI / 2);
-  const r = s / 2;
   if (s < 20) {
-    // 迷你图标（面板预览 / 命数）：简化版
-    ctx.fillStyle = "#1c1c1c";
-    ctx.fillRect(-r, -r, 3, s); ctx.fillRect(r - 3, -r, 3, s);
-    ctx.fillStyle = "#4a4a4a";
-    for (let i = -r; i < r - 2; i += 3) { ctx.fillRect(-r + 1, i, 1, 1); ctx.fillRect(r - 2, i, 1, 1); }
-    ctx.fillStyle = color;
-    ctx.fillRect(-r + 3, -r + 4, s - 6, s - 6);
-    ctx.fillStyle = shade(color, 1.25); ctx.fillRect(-r + 3, -r + 4, s - 6, 2);
-    ctx.fillStyle = shade(color, 0.8);
-    ctx.fillRect(-r + 3, r - 3, s - 6, 2);
-    ctx.fillRect(-r + 3, -r + 4, 2, s - 6);
-    ctx.fillStyle = color;
-    ctx.fillRect(-3, -r + 2, 6, 4);
-    ctx.fillStyle = shade(color, 1.3); ctx.fillRect(-3, -r + 2, 6, 1);
-    ctx.fillStyle = "#262626"; ctx.fillRect(-1, -r - 2, 2, 5);
-    ctx.fillStyle = "#6a6a6a"; ctx.fillRect(-1, -r - 2, 1, 5);
-  } else {
-    const enemy = (variant === 1);
-    const cDk  = shade(color, 0.78);
-    const cMid = shade(color, 0.92);
-    const cLt  = shade(color, 1.28);
-    // 两侧履带（整条长度）
-    ctx.fillStyle = "#202020";
-    ctx.fillRect(-r, -r, 5, s); ctx.fillRect(r - 5, -r, 5, s);
-    ctx.fillStyle = "#0d0d0d";
-    ctx.fillRect(-r, -r, 5, 3); ctx.fillRect(r - 5, -r, 5, 3); // 前部驱动轮罩
-    ctx.fillStyle = "#4a4a4a";
-    for (let i = -r + 4; i < r - 1; i += 5) { ctx.fillRect(-r + 1, i, 3, 2); ctx.fillRect(r - 4, i, 3, 2); } // 履带节
-    // 车体
-    ctx.fillStyle = color;
-    ctx.fillRect(-r + 5, -r + 12, s - 10, s - 12);
-    ctx.fillStyle = cLt;
-    ctx.fillRect(-r + 5, -r + 12, s - 10, 3);                 // 顶部高光
-    ctx.fillStyle = cDk;
-    ctx.fillRect(-r + 5, r - 4, s - 10, 2);                   // 底部阴影
-    ctx.fillRect(-r + 5, -r + 12, 2, s - 12);                 // 左侧棱影
-    ctx.fillStyle = cMid;
-    if (enemy) {
-      ctx.fillRect(-r + 5, -r + 17, s - 10, 3);               // 敌机：横贯装甲带
-    } else {
-      ctx.fillRect(-r + 6, -r + 22, s - 12, 1);               // 玩家：甲板接缝
-    }
-    // 炮塔
-    ctx.fillStyle = color;
-    ctx.fillRect(-6, -r + 6, 12, 11);
-    if (!enemy) {                                             // 玩家炮塔有圆顶
-      ctx.fillRect(-5, -r + 3, 10, 3);
-      ctx.fillRect(-3, -r + 2, 6, 1);
-    }
-    ctx.fillStyle = cLt;
-    ctx.fillRect(-6, -r + 6, 12, 3);
-    ctx.fillStyle = cDk;
-    ctx.fillRect(-6, r - 11, 12, 2);
-    // 炮管
-    ctx.fillStyle = "#3a3a3a";
-    ctx.fillRect(-2, -r - 4, 4, 10);
-    ctx.fillStyle = "#6a6a6a";
-    ctx.fillRect(-2, -r - 4, 2, 10);                          // 炮管左棱高光
-    ctx.fillStyle = "#141414";
-    ctx.fillRect(-2, -r - 4, 4, 2);                           // 炮口
-    ctx.fillStyle = "#2a2a2a";
-    ctx.fillRect(-3, -r + 5, 6, 2);                           // 炮座法兰
+    // 迷你图标（HUD 命数预览）：保留 2D 简化版
+    const r = s / 2, cx = Math.round(x + r), cy = Math.round(y + r);
+    ctx.fillStyle = "#1c1c1c"; ctx.fillRect(cx - r, cy - r, 3, s); ctx.fillRect(cx + r - 3, cy - r, 3, s);
+    ctx.fillStyle = color; ctx.fillRect(cx - r + 3, cy - r + 4, s - 6, s - 6);
+    ctx.fillStyle = shade(color, 1.25); ctx.fillRect(cx - r + 3, cy - r + 4, s - 6, 2);
+    ctx.fillStyle = color; ctx.fillRect(cx - 3, cy - r + 2, 6, 4);
+    ctx.fillStyle = "#262626"; ctx.fillRect(cx - 1, cy - r - 2, 2, 5);
+    return;
   }
+  const p = iso(x + TANK_SIZE / 2, y + TANK_SIZE / 2);
+  drawTankBody(p.x, p.y, dir, color, invincible);
+}
+// 立体坦克主体（sx,sy 为屏幕投影中心，位于地面）
+function drawTankBody(sx, sy, dir, color, invincible){
+  const cTop = shade(color, 1.08), cL = shade(color, 0.66), cR = shade(color, 0.86);
+  const hw = ISO_HW - 4, hh = ISO_HH - 2;
+  // 履带（两侧暗色立体条）
+  isoBox(sx - hw + 1, sy, 4, 2, 5, "#3a3a3a", "#1a1a1a", "#555");
+  isoBox(sx + hw - 1, sy, 4, 2, 5, "#3a3a3a", "#1a1a1a", "#555");
+  // 车身
+  isoBox(sx, sy, hw, hh, 9, color, cL, cR);
+  // 炮塔
+  isoBox(sx, sy - 6, 7, 4, 6, cTop, cL, cR);
+  // 炮管（沿朝向伸出）
+  const bx = sx + DIR_SX[dir] * 5, by = sy - 5 + DIR_SY[dir] * 5;
+  const ex = sx + DIR_SX[dir] * 16, ey = sy - 5 + DIR_SY[dir] * 16;
+  ctx.strokeStyle = "#2a2a2a"; ctx.lineWidth = 5;
+  ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(ex, ey); ctx.stroke();
+  ctx.strokeStyle = "#6a6a6a"; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(ex, ey); ctx.stroke();
+  // 无敌光圈
   if (invincible > 0) {
     ctx.strokeStyle = "rgba(130,225,255," + (0.5 + 0.4 * Math.sin(elapsed * 10)) + ")";
     ctx.lineWidth = 2;
-    ctx.strokeRect(-r - 2, -r - 2, s + 4, s + 4);
+    ctx.beginPath(); ctx.arc(sx, sy - 6, hw + 4, 0, 7); ctx.stroke();
   }
-  ctx.restore();
 }
 
-function drawBrickTile(x, y, mask){
-  ctx.fillStyle = "#241006"; ctx.fillRect(x, y, TILE, TILE);
-  for (let q = 0; q < 4; q++) {
-    if (!(mask & (1 << q))) continue;
-    const dx = (q & 1) ? TILE / 2 : 0, dy = (q & 2) ? TILE / 2 : 0;
-    ctx.fillStyle = "#b5501c"; ctx.fillRect(x + dx + 1, y + dy + 1, TILE / 2 - 2, TILE / 2 - 2);
-  }
+function drawBrickTile(c, r, mask){
+  let n = 0; for (let q = 0; q < 4; q++) if (mask & (1 << q)) n++;
+  if (n === 0) return;
+  const p = iso((c + 0.5) * TILE, (r + 0.5) * TILE);
+  const h = 5 + n * 3;                     // 剩余砖块越多，墙体越高
+  isoBox(p.x, p.y, ISO_HW - 2, ISO_HH - 1, h, "#a0502a", "#6e3316", "#c86a36");
 }
-function drawSteelTile(x, y){
-  ctx.fillStyle = "#9a9aa6"; ctx.fillRect(x, y, TILE, TILE);
-  ctx.strokeStyle = "#6a6a74"; ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(x + 5, y + 5); ctx.lineTo(x + TILE - 5, y + TILE - 5);
-  ctx.moveTo(x + TILE - 5, y + 5); ctx.lineTo(x + 5, y + TILE - 5);
-  ctx.stroke();
-  ctx.strokeStyle = "#c8c8d2"; ctx.lineWidth = 1;
-  ctx.strokeRect(x + 0.5, y + 0.5, TILE - 1, TILE - 1);
+function drawSteelTile(c, r){
+  const p = iso((c + 0.5) * TILE, (r + 0.5) * TILE);
+  isoBox(p.x, p.y, ISO_HW - 2, ISO_HH - 1, 18, "#9aa0a8", "#666c74", "#c8ced6");
+  ctx.fillStyle = "#545a62";
+  ctx.beginPath(); ctx.arc(p.x - 4, p.y - 10, 1.5, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.arc(p.x + 4, p.y - 10, 1.5, 0, 7); ctx.fill();
 }
-function drawWaterTile(x, y){
-  ctx.fillStyle = "#2457c0"; ctx.fillRect(x, y, TILE, TILE);
-  ctx.strokeStyle = "#7fb6ff"; ctx.lineWidth = 2;
-  const off = Math.sin(elapsed * 2 + (x + y) * 0.08) * 3;
-  ctx.beginPath(); ctx.moveTo(x + 4, y + 11 + off); ctx.lineTo(x + TILE - 4, y + 11 - off); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(x + 4, y + 22 - off); ctx.lineTo(x + TILE - 4, y + 22 + off); ctx.stroke();
+function drawWaterTile(c, r){
+  const p = iso((c + 0.5) * TILE, (r + 0.5) * TILE);
+  isoDiamond(p.x, p.y, ISO_HW, ISO_HH, "#1f5fc0");
+  const off = Math.sin(elapsed * 2 + (c + r) * 0.8) * 2;
+  ctx.strokeStyle = "#7fb6ff"; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(p.x - ISO_HW / 2, p.y + off); ctx.lineTo(p.x + ISO_HW / 2, p.y - off); ctx.stroke();
 }
-function drawIceTile(x, y){
-  ctx.fillStyle = "#c6dbf2"; ctx.fillRect(x, y, TILE, TILE);
-  ctx.strokeStyle = "#9dbbe0"; ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(x + 4, y); ctx.lineTo(x + TILE, y + TILE - 4);
-  ctx.moveTo(x + 2, y + TILE); ctx.lineTo(x + TILE - 2, y + 2);
-  ctx.stroke();
+function drawIceTile(c, r){
+  const p = iso((c + 0.5) * TILE, (r + 0.5) * TILE);
+  isoDiamond(p.x, p.y, ISO_HW, ISO_HH, "#bfd9f0");
+  ctx.strokeStyle = "#9dbbe0"; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(p.x - ISO_HW / 2, p.y); ctx.lineTo(p.x + ISO_HW / 2, p.y); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(p.x, p.y - ISO_HH / 2); ctx.lineTo(p.x, p.y + ISO_HH / 2); ctx.stroke();
 }
-function drawTreeTile(x, y){
-  ctx.fillStyle = "#0d0d13"; ctx.fillRect(x, y, TILE, TILE);
-  ctx.fillStyle = "#2f8a3d";
-  ctx.beginPath(); ctx.arc(x + 9, y + 11, 7, 0, 7); ctx.fill();
-  ctx.beginPath(); ctx.arc(x + 22, y + 10, 8, 0, 7); ctx.fill();
-  ctx.beginPath(); ctx.arc(x + 16, y + 22, 8, 0, 7); ctx.fill();
-  ctx.fillStyle = "#4db45a";
-  ctx.beginPath(); ctx.arc(x + 8, y + 8, 3, 0, 7); ctx.fill();
-  ctx.beginPath(); ctx.arc(x + 22, y + 7, 3, 0, 7); ctx.fill();
+function drawTreeTile(c, r){
+  const p = iso((c + 0.5) * TILE, (r + 0.5) * TILE);
+  isoBox(p.x, p.y - 2, 4, 2, 14, "#6b4a2a", "#4a3018", "#8a6038");   // 树干
+  ctx.fillStyle = "#2f7a33";                                          // 树冠
+  ctx.beginPath(); ctx.arc(p.x, p.y - 18, 13, 0, 7); ctx.fill();
+  ctx.fillStyle = "#3f9a44";
+  ctx.beginPath(); ctx.arc(p.x - 4, p.y - 21, 8, 0, 7); ctx.fill();
+  ctx.fillStyle = "#1f5c22";
+  ctx.beginPath(); ctx.arc(p.x + 5, p.y - 15, 6, 0, 7); ctx.fill();
 }
-function drawEagle(x, y){
-  ctx.fillStyle = "#1a1a1a"; ctx.fillRect(x + 2, y + 28, 28, 4);
-  ctx.fillStyle = "#f0c23a";
-  ctx.beginPath(); ctx.ellipse(x + 16, y + 14, 6, 8, 0, 0, 7); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(x + 10, y + 18); ctx.lineTo(x + 4, y + 30); ctx.lineTo(x + 16, y + 24); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(x + 22, y + 18); ctx.lineTo(x + 28, y + 30); ctx.lineTo(x + 16, y + 24); ctx.fill();
+function drawEagle(c, r){
+  const p = iso((c + 0.5) * TILE, (r + 0.5) * TILE);
+  isoBox(p.x, p.y, ISO_HW - 2, ISO_HH - 1, 6, "#8a8f96", "#5a5f66", "#b0b6be");  // 底座
+  isoBox(p.x, p.y - 9, 8, 4, 7, "#f0c23a", "#c8861a", "#ffd95a");               // 金鹰
   ctx.fillStyle = "#ffd95a";
-  ctx.beginPath(); ctx.arc(x + 16, y + 6, 3.5, 0, 7); ctx.fill();
-  ctx.fillStyle = "#c8861a";
-  ctx.beginPath(); ctx.moveTo(x + 16, y + 4); ctx.lineTo(x + 21, y + 8); ctx.lineTo(x + 16, y + 10); ctx.fill();
-  ctx.fillStyle = "#fff"; ctx.fillRect(x + 14, y + 4, 2, 2);
+  ctx.beginPath(); ctx.arc(p.x, p.y - 17, 3, 0, 7); ctx.fill();
 }
-function drawGround(x, y, c, r){
-  ctx.fillStyle = ((c + r) & 1) ? "#0d0d13" : "#111118";
-  ctx.fillRect(x, y, TILE, TILE);
-  if ((c * 7 + r * 13) % 9 === 0) { ctx.fillStyle = "#1b1b26"; ctx.fillRect(x + 9, y + 9, 2, 2); }
+function drawGround(c, r){
+  const p = iso((c + 0.5) * TILE, (r + 0.5) * TILE);
+  isoDiamond(p.x, p.y, ISO_HW, ISO_HH, ((c + r) & 1) ? "#1b1e17" : "#20241b");
+  if ((c * 7 + r * 13) % 9 === 0) {
+    ctx.fillStyle = "rgba(255,255,255,0.05)";
+    ctx.beginPath(); ctx.arc(p.x, p.y, 2, 0, 7); ctx.fill();
+  }
 }
 
+function drawBullet(b){
+  const p = iso(b.x, b.y);
+  ctx.fillStyle = b.kind === "player" ? "#ffe97a" : "#ff7a7a";
+  ctx.beginPath(); ctx.arc(p.x, p.y - 3, 3.5, 0, 7); ctx.fill();
+  ctx.fillStyle = "#fff";
+  ctx.beginPath(); ctx.arc(p.x, p.y - 3, 1.5, 0, 7); ctx.fill();
+}
 function drawPowerup(pw){
   const blink = pw.t < 12 || (Math.floor(elapsed * 5) % 2 === 0);
   if (!blink) return;
-  const x = pw.x + 3, y = pw.y + 3, s = TILE - 6;
-  ctx.fillStyle = "rgba(255,255,255,0.92)";
-  ctx.fillRect(x, y, s, s);
-  ctx.strokeStyle = "#333"; ctx.lineWidth = 2; ctx.strokeRect(x, y, s, s);
-  const cx = x + s / 2, cy = y + s / 2;
-  ctx.fillStyle = "#333"; ctx.font = "bold 14px monospace"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-  ctx.fillText({ star:"★", helmet:"H", shovel:"铲", clock:"时", grenade:"弹", tank:"车" }[pw.type], cx, cy + 1);
+  const g = iso(pw.x + TILE / 2, pw.y + TILE / 2);
+  const sy = g.y + Math.sin(elapsed * 4) * 2 - 8;                 // 悬浮
+  isoBox(g.x, sy, 9, 5, 10, "#ffffff", "#c0c0c8", "#e8e8ee");
+  const ch = { star:"★", helmet:"H", shovel:"铲", clock:"时", grenade:"弹", tank:"车" }[pw.type];
+  ctx.fillStyle = "#333"; ctx.font = "bold 9px monospace"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillText(ch, g.x, sy - 10);
 }
 function drawExplosion(ex){
-  const p = ex.t / ex.dur;
-  const s = ex.big ? 40 : 24;
-  ctx.globalAlpha = 1 - p * 0.6;
-  const r = s * (0.4 + p * 0.7);
+  const t = ex.t / ex.dur;
+  const s = ex.big ? 40 : 26;
+  const p = iso(ex.x, ex.y);
+  ctx.globalAlpha = 1 - t * 0.6;
+  const r = s * (0.4 + t * 0.7);
   ctx.fillStyle = "#ff6a00";
-  ctx.beginPath(); ctx.arc(ex.x, ex.y, r, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.arc(p.x, p.y - 4, r, 0, 7); ctx.fill();
   ctx.fillStyle = "#ffd23d";
-  ctx.beginPath(); ctx.arc(ex.x, ex.y, r * 0.6, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.arc(p.x, p.y - 4, r * 0.6, 0, 7); ctx.fill();
   ctx.fillStyle = "#fff";
-  ctx.beginPath(); ctx.arc(ex.x, ex.y, r * 0.25, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.arc(p.x, p.y - 4, r * 0.25, 0, 7); ctx.fill();
   ctx.globalAlpha = 1;
 }
 
 function drawPlayfield(){
+  // 1) 地面平面（永远在最底层）
   for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
-    const x = c * TILE, y = r * TILE, tt = tileType(c, r);
-    if (tt === EMPTY) drawGround(x, y, c, r);
-    else if (tt === BRICK) drawBrickTile(x, y, brickMask[r][c]);
-    else if (tt === STEEL) drawSteelTile(x, y);
-    else if (tt === WATER) drawWaterTile(x, y);
-    else if (tt === ICE) drawIceTile(x, y);
-    else if (tt === TREE) drawGround(x, y, c, r);
-    else if (tt === BASE) drawEagle(x, y);
+    const tt = tileType(c, r);
+    if (tt === EMPTY || tt === TREE) drawGround(c, r);
   }
-  // 出生指示
-  for (const ind of spawnIndicators) {
+  // 2) 收集所有立体实体，按深度排序（远 → 近）
+  const items = [];
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+    const tt = tileType(c, r), d = c + r;
+    if (tt === BRICK) items.push({ d, f: () => drawBrickTile(c, r, brickMask[r][c]) });
+    else if (tt === STEEL) items.push({ d, f: () => drawSteelTile(c, r) });
+    else if (tt === WATER) items.push({ d: d + 0.1, f: () => drawWaterTile(c, r) });
+    else if (tt === ICE) items.push({ d: d + 0.1, f: () => drawIceTile(c, r) });
+    else if (tt === BASE) items.push({ d, f: () => drawEagle(c, r) });
+    else if (tt === TREE) items.push({ d: d + 0.6, f: () => drawTreeTile(c, r) });
+  }
+  for (const ind of spawnIndicators)
     if (Math.floor(elapsed * 6) % 2 === 0)
-      drawTank(ind.x, ind.y, DOWN, "#9a9a9a", TANK_SIZE, 0, 1);
-  }
-  // 道具
-  for (const pw of powerups) drawPowerup(pw);
-  // 坦克（玩家在敌人之下，无所谓）
-  for (const p of players) if (p.alive) drawTank(p.x, p.y, p.dir, p.idx === 1 ? "#f7c632" : "#45b545", TANK_SIZE, p.invincible);
+      items.push({ d: (ind.x + ind.y) / TILE, f: () => drawTank(ind.x, ind.y, DOWN, "#9a9a9a", TANK_SIZE, 0, 1) });
+  for (const pw of powerups)
+    items.push({ d: (pw.x + pw.y) / TILE + 0.3, f: () => drawPowerup(pw) });
+  for (const p of players) if (p.alive)
+    items.push({ d: (p.x + p.y) / TILE + 0.3, f: () => drawTank(p.x, p.y, p.dir, p.idx === 1 ? "#f7c632" : "#45b545", TANK_SIZE, p.invincible) });
   for (const e of enemies) if (e.alive) {
     let col = ENEMY_TYPES[e.etype].color;
     if (e.flash && Math.floor(elapsed * 5) % 2 === 0) col = "#ffffff";
-    drawTank(e.x, e.y, e.dir, col, TANK_SIZE, 0, 1);
+    items.push({ d: (e.x + e.y) / TILE + 0.3, f: () => drawTank(e.x, e.y, e.dir, col, TANK_SIZE, 0, 1) });
   }
-  // 子弹
-  for (const b of bullets) {
-    ctx.fillStyle = b.kind === "player" ? "#ffe97a" : "#ff7a7a";
-    ctx.fillRect(b.x - 3, b.y - 3, 6, 6);
-    ctx.fillStyle = "#fff";
-    ctx.fillRect(b.x - 1, b.y - 1, 2, 2);
-  }
-  // 树冠覆盖（坦克藏在树下）
-  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++)
-    if (tileType(c, r) === TREE) drawTreeTile(c * TILE, r * TILE);
-  // 爆炸
-  for (const ex of explosions) drawExplosion(ex);
-  // 漂浮分数
+  for (const b of bullets)
+    items.push({ d: (b.x + b.y) / TILE + 0.2, f: () => drawBullet(b) });
+  for (const ex of explosions)
+    items.push({ d: (ex.x + ex.y) / TILE + 0.5, f: () => drawExplosion(ex) });
+  items.sort((a, b) => a.d - b.d);
+  for (const it of items) it.f();
+  // 3) 漂浮分数（最顶层）
   ctx.font = "bold 13px monospace"; ctx.textAlign = "center";
   for (const f of floaters) {
     ctx.globalAlpha = 1 - f.t / f.dur;
     ctx.fillStyle = "#ffe97a";
-    ctx.fillText(f.txt, f.x, f.y - f.t * 22);
+    const fp = iso(f.x, f.y, f.t * 22);
+    ctx.fillText(f.txt, fp.x, fp.y);
   }
   ctx.globalAlpha = 1;
 }
 
 function drawHUD(){
-  const x0 = FIELD;
+  const x0 = HUD_X;
   ctx.fillStyle = "#141419"; ctx.fillRect(x0, 0, PANEL, H);
   ctx.strokeStyle = "#26262e"; ctx.lineWidth = 1; ctx.strokeRect(x0 + 0.5, 0.5, PANEL - 1, H - 1);
   ctx.textAlign = "left"; ctx.textBaseline = "top";
@@ -1243,14 +1240,14 @@ function drawHUD(){
 
 // 信息覆盖层（黑色半透明 + 文字）
 function drawOverlayText(lines, bigFirst){
-  ctx.fillStyle = "rgba(0,0,0,0.72)"; ctx.fillRect(0, 0, FIELD, H);
+  ctx.fillStyle = "rgba(0,0,0,0.72)"; ctx.fillRect(0, 0, HUD_X, H);
   ctx.textAlign = "center";
   let y = H / 2 - lines.length * 26;
   for (let i = 0; i < lines.length; i++) {
     const [txt, size, color] = lines[i];
     ctx.font = "bold " + (size || 26) + "px 'Microsoft YaHei',sans-serif";
     ctx.fillStyle = color || "#fff";
-    ctx.fillText(txt, FIELD / 2, y + i * 52);
+    ctx.fillText(txt, HUD_X / 2, y + i * 52);
   }
   ctx.textAlign = "start";
 }
@@ -1259,11 +1256,11 @@ function drawGameOver(){
   drawOverlayText([["GAME OVER", 40, "#ff5a5a"],
     ["得分 " + score1 + (gameMode === "2p" ? "  ·  " + score2 : ""), 18, "#e8e8ee"]]);
   // 返回首页按钮（可点击，手机也可点）
-  const bw = 168, bh = 46, bx = FIELD / 2 - bw / 2, by = 300;
+  const bw = 168, bh = 46, bx = HUD_X / 2 - bw / 2, by = 300;
   rr(bx, by, bw, bh, 23); ctx.fillStyle = "#f5c542"; ctx.fill();
   ctx.fillStyle = "#141419"; ctx.font = "bold 20px 'Microsoft YaHei',sans-serif";
   ctx.textAlign = "center"; ctx.textBaseline = "middle";
-  ctx.fillText("返回首页", FIELD / 2, by + bh / 2);
+  ctx.fillText("返回首页", HUD_X / 2, by + bh / 2);
   ctx.textAlign = "start"; ctx.textBaseline = "alphabetic";
 }
 
@@ -1321,13 +1318,14 @@ function drawTitle(){
   ctx.fillRect(CX - sw / 2 - 42, 110, 30, 1);
   ctx.fillRect(CX + sw / 2 + 12, 110, 30, 1);
 
-  // 模式按钮（拟物胶囊）
+  // 模式按钮（拟物胶囊，随画布居中）
   ctx.font = "bold 20px 'Microsoft YaHei',sans-serif";
   ctx.textBaseline = "middle";
-  pill(78, 146, 210, 44, "#ffd94a", "#d99b1e");
-  ctx.fillStyle = "#141419"; ctx.fillText("1 人游戏", 183, 169);
-  pill(304, 146, 210, 44, "#5fd05f", "#2f8f2f");
-  ctx.fillStyle = "#0e1410"; ctx.fillText("双人对战", 409, 169);
+  const btnW = 210, btnGap = 16, bx1 = CX - btnW - btnGap / 2, bx2 = CX + btnGap / 2;
+  pill(bx1, 146, btnW, 44, "#ffd94a", "#d99b1e");
+  ctx.fillStyle = "#141419"; ctx.fillText("1 人游戏", bx1 + btnW / 2, 169);
+  pill(bx2, 146, btnW, 44, "#5fd05f", "#2f8f2f");
+  ctx.fillStyle = "#0e1410"; ctx.fillText("双人对战", bx2 + btnW / 2, 169);
 
   // 关卡选择
   ctx.textBaseline = "alphabetic";
@@ -1352,11 +1350,11 @@ function drawTitle(){
   ctx.fillStyle = "#5aa0e0"; ctx.font = "13px 'Microsoft YaHei',sans-serif";
   if (Math.floor(elapsed * 2) % 2 === 0) ctx.fillText("点击选关 · Enter 开始", CX, 362);
 
-  // 装饰坦克：横穿整个画布
+  // 装饰坦克：横穿整个画布（屏幕坐标直接绘制立体坦克）
   titleTankX += 40 * 0.016;
   if (titleTankX > W + 40) titleTankX = -40;
-  drawTank(Math.max(titleTankX, 0), 388, RIGHT, "#f5c542", TANK_SIZE, 0);
-  drawTank(W - 40, 384, UP, "#45b545", TANK_SIZE, 0);
+  drawTankBody(Math.max(titleTankX, 0), 388, RIGHT, "#f5c542", 0);
+  drawTankBody(W - 40, 384, UP, "#45b545", 0);
   ctx.textAlign = "start";
 }
 
@@ -1384,8 +1382,9 @@ canvas.addEventListener("click", e => {
   if (state === "title") {
     // 模式按钮
     if (my > 146 && my < 190) {
-      if (mx > 78 && mx < 288) startGame("1p", selectedStage);
-      else if (mx > 304 && mx < 514) startGame("2p", selectedStage);
+      const btnW = 210, btnGap = 16, bx1 = W / 2 - btnW - btnGap / 2, bx2 = W / 2 + btnGap / 2;
+      if (mx > bx1 && mx < bx1 + btnW) startGame("1p", selectedStage);
+      else if (mx > bx2 && mx < bx2 + btnW) startGame("2p", selectedStage);
     }
     // 关卡格子
     for (let i = 0; i < STAGES.length; i++) {
@@ -1394,7 +1393,7 @@ canvas.addEventListener("click", e => {
     }
   } else if (state === "gameover" && goTimer <= 0) {
     // 返回首页按钮
-    const bw = 168, bh = 46, bx = FIELD / 2 - bw / 2, by = 300;
+    const bw = 168, bh = 46, bx = HUD_X / 2 - bw / 2, by = 300;
     if (mx > bx && mx < bx + bw && my > by && my < by + bh) state = "title";
   }
 });
