@@ -416,7 +416,6 @@ function syncTouchPad(){ // 触控面板与暂停按钮：战斗时显示，暂�
   pb.classList.toggle("paused", paused);
   if (vis !== padVisible) { padVisible = vis; fitCanvas(); } // 面板显隐变化时重算画布
 }
-fitCanvas();
 
 // 音乐 / 音效 / 暂停开关（右上角按钮；键盘 N、B、P；M 键是静音全部）
 function setMusicUI(){ $("tmusic").classList.toggle("off", !musicOn); }
@@ -466,6 +465,7 @@ let stageIntro = 0, clearTimer = 0, goTimer = 0;
 let shieldOrig = {};              // 铁铲生效前的基地砖墙状态
 let baseDestroyed = false;
 let elapsed = 0;
+fitCanvas(); // 依赖 state 等变量已声明后，手机端才可安全计算画布尺寸（此前置于函数定义处会触发 let 暂时性死区）
 try { hiscore = parseInt(localStorage.getItem("bt_hiscore") || "0", 10) || 0; } catch(e){}
 
 // ============ 地图 ============
