@@ -96,8 +96,7 @@ const TOPBAR_H = 72;                  // 顶部信息栏高度
 const FIELD_PX = 520;                 // 战场渲染像素尺寸（等比例放大显示）
 const SCALE = FIELD_PX / FIELD;       // 1.25 —— 渲染缩放系数
 const W = FIELD_PX, H = TOPBAR_H + FIELD_PX;   // 520 x 592（逻辑坐标）
-const RES = 2;                          // 渲染分辨率倍率 → 物理像素 1040×1184 ≈ 1080p
-canvas.width = W * RES; canvas.height = H * RES;
+let RENDER_K = 2;                       // 逻辑坐标 → 物理像素 的渲染倍率（fitCanvas 按 dpr 动态计算）
 
 // 方向
 const UP = 0, RIGHT = 1, DOWN = 2, LEFT = 3;
@@ -410,14 +409,21 @@ document.querySelectorAll(".dbtn").forEach(b => touchBtn(b, b.dataset.k));
 touchBtn($("tfire"), "fire");
 let isTouch = ("ontouchstart" in window) || (navigator.maxTouchPoints > 0);
 let padVisible = null;
-function fitCanvas(){ // 手机端用真实可视高度重算画布，避开 vh/100dvh 的浏览器工具栏误差
-  if (!isTouch || !canvas.style) return;
-  const padH = (state === "play" || state === "stageclear") ? 276 : 24; // 顶部控制按钮(56) + 底部触控面板(220) 占用高度
+function fitCanvas(){ // 统一计算显示尺寸 + 内部分辨率（桌面/手机都走这里，retina 清晰）
+  if (!canvas.style) return; // 无 style（测试沙箱）时跳过
+  const dpr = Math.min(Math.max(window.devicePixelRatio || 1, 1), 4); // retina 上限 4
+  const padH = isTouch
+    ? ((state === "play" || state === "stageclear") ? 276 : 24)   // 触屏：战斗预留顶部按钮(56)+底部触控面板(220)
+    : 130;                                                        // 桌面：顶部按钮(52)+底部留白，与旧 CSS 一致
   const availH = Math.max(180, (window.innerHeight || 0) - padH);
   const availW = Math.max(180, (window.innerWidth || 0) - 6);
-  const w = Math.min(availW, availH * (W / H));
-  canvas.style.width = Math.floor(w) + "px";
+  const displayW = Math.min(availW, availH * (W / H));
+  canvas.style.width = Math.floor(displayW) + "px";
   canvas.style.height = "auto";
+  const pw = Math.round(displayW * dpr);      // 物理像素宽 = 显示宽 × dpr（retina 1:1）
+  canvas.width = pw;
+  canvas.height = Math.round(pw * (H / W));
+  RENDER_K = canvas.width / W;                // 逻辑 → 物理 渲染倍率
 }
 window.addEventListener("resize", fitCanvas);
 window.addEventListener("orientationchange", fitCanvas);
@@ -1409,7 +1415,7 @@ function drawTitle(){
 }
 
 function render(){
-  ctx.setTransform(RES, 0, 0, RES, 0, 0);
+  ctx.setTransform(RENDER_K, 0, 0, RENDER_K, 0, 0);
   if (state === "title") { drawTitle(); return; }
   drawPlayfield();
   drawHUD();
