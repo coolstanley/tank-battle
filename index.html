@@ -1452,7 +1452,8 @@ function render(){
 }
 
 // ============ 标题点击 ============
-canvas.addEventListener("click", e => {
+canvas.addEventListener("pointerdown", e => {
+  if (e.button !== 0) return; // 仅主键/触摸
   const rect = canvas.getBoundingClientRect();
   const mx = (e.clientX - rect.left) * (W / rect.width);
   const my = (e.clientY - rect.top) * (H / rect.height);
@@ -1465,8 +1466,8 @@ canvas.addEventListener("click", e => {
     }
     // 关卡格子
     for (let i = 0; i < STAGES.length; i++) {
-      const r = stageRect(i);
-      if (mx > r.x && mx < r.x + r.w && my > r.y + TITLE_OY && my < r.y + TITLE_OY + r.h) selectedStage = i + 1;
+      const r = stageRect(i), pad = 4; // 相邻格子间隙也纳入点击热区
+      if (mx > r.x - pad && mx < r.x + r.w + pad && my > r.y + TITLE_OY - pad && my < r.y + TITLE_OY + r.h + pad) selectedStage = i + 1;
     }
   } else if (state === "gameover" && goTimer <= 0) {
     // 返回首页按钮
