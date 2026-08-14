@@ -5,32 +5,39 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>坦克大战 · Battle City</title>
 <style>
-  html,body{margin:0;padding:0;height:100%;background:#050505;overflow:hidden;
+  html,body{margin:0;padding:0;height:100%;overflow:hidden;
+    background:linear-gradient(180deg,#0c0c16 0%,#10101c 55%,#0a0a10 100%);
     font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;
     display:flex;flex-direction:column;align-items:center;justify-content:center;user-select:none;-webkit-user-select:none;}
   #wrap{position:relative;}
   canvas{image-rendering:pixelated;image-rendering:crisp-edges;background:#000;
-    border:2px solid #3a3a3a;border-radius:4px;
+    border:3px solid #3b3b46;border-radius:8px;
+    box-shadow:0 0 0 3px #15151c, 0 12px 32px rgba(0,0,0,.65), inset 0 0 0 1px #000;
     width:min(97vw, calc((100vh - 130px) * 1.423), calc((100dvh - 130px) * 1.423));height:auto;max-width:100%;}
-  #touch{display:none;position:fixed;left:0;right:0;bottom:10px;height:130px;z-index:10;
-    pointer-events:none;justify-content:space-between;align-items:center;padding:0 8vw;}
+  #touch{display:none;position:fixed;left:0;right:0;bottom:12px;height:200px;z-index:10;
+    pointer-events:none;justify-content:space-between;align-items:center;padding:0 7vw;}
   #touch.visible{display:flex;}
-  .dpad{position:relative;width:150px;height:150px;pointer-events:none;}
-  .dbtn{position:absolute;width:52px;height:52px;border:none;border-radius:12px;background:rgba(255,255,255,.14);
-    color:#fff;font-size:22px;pointer-events:auto;touch-action:none;font-weight:bold;}
-  .dbtn:active{background:rgba(255,220,80,.45);}
-  .d-up{top:0;left:49px;} .d-down{bottom:0;left:49px;}
-  .d-left{top:49px;left:0;} .d-right{top:49px;right:0;}
-  #tfire{width:86px;height:86px;border-radius:50%;border:none;background:rgba(255,90,40,.35);color:#fff;
-    font-size:20px;font-weight:bold;pointer-events:auto;touch-action:none;}
-  #tfire:active{background:rgba(255,120,40,.7);}
+  .dpad{position:relative;width:196px;height:196px;pointer-events:none;}
+  .dbtn{position:absolute;width:68px;height:68px;border:2px solid rgba(255,255,255,.18);
+    border-radius:10px;background:linear-gradient(180deg,rgba(255,255,255,.16),rgba(255,255,255,.06));
+    color:#fff;font-size:30px;pointer-events:auto;touch-action:none;font-weight:bold;
+    box-shadow:inset 0 2px 0 rgba(255,255,255,.18), inset 0 -3px 0 rgba(0,0,0,.35);}
+  .dbtn:active{background:linear-gradient(180deg,rgba(255,220,80,.55),rgba(255,180,40,.35));
+    box-shadow:inset 0 3px 0 rgba(0,0,0,.3);}
+  .d-up{top:0;left:64px;} .d-down{bottom:0;left:64px;}
+  .d-left{top:64px;left:0;} .d-right{top:64px;right:0;}
+  #tfire{width:100px;height:100px;border-radius:50%;border:2px solid rgba(255,255,255,.2);
+    background:radial-gradient(circle at 50% 35%, rgba(255,140,60,.55), rgba(255,70,30,.35));
+    color:#fff;font-size:22px;font-weight:bold;pointer-events:auto;touch-action:none;
+    box-shadow:inset 0 2px 0 rgba(255,255,255,.2), inset 0 -4px 0 rgba(0,0,0,.35), 0 4px 12px rgba(0,0,0,.4);}
+  #tfire:active{background:radial-gradient(circle at 50% 35%, rgba(255,170,80,.7), rgba(255,90,40,.5));}
   #hint{color:#666;font-size:12px;margin-top:8px;text-align:center;}
   /* 右上角控制按钮组：暂停 / 音乐 / 音效（图标全用 CSS 手绘，不用 emoji） */
   #ctrls{position:fixed;top:10px;right:10px;z-index:20;display:flex;flex-direction:column;gap:8px;}
-  #ctrls button{width:40px;height:40px;border-radius:11px;border:1px solid rgba(255,255,255,.15);
-    background:rgba(12,12,14,.62);color:#e9e9e9;font-size:17px;line-height:1;cursor:pointer;
+  #ctrls button{width:42px;height:42px;border-radius:9px;border:1px solid rgba(255,255,255,.16);
+    background:linear-gradient(180deg,rgba(32,32,42,.82),rgba(14,14,18,.82));color:#e9e9e9;font-size:17px;line-height:1;cursor:pointer;
     display:flex;align-items:center;justify-content:center;padding:0;position:relative;
-    box-shadow:0 2px 6px rgba(0,0,0,.45);font-family:Georgia,'Times New Roman',serif;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.08), 0 2px 6px rgba(0,0,0,.5);font-family:Georgia,'Times New Roman',serif;
     -webkit-tap-highlight-color:transparent;}
   #ctrls button:active{transform:scale(.92);background:rgba(255,255,255,.16);}
   #ctrls .musicBtn{color:#ffd23d;}
@@ -351,13 +358,13 @@ const SFX = {
 };
 
 // ============ 背景音乐（Web Audio 合成，16步循环，无外部文件） ============
-// 舒缓风格：慢速 C - Am - F - G 分解和弦，主旋律正弦波 + 低音三角波。
+// 欢快风格：较快速度 C 大调上行旋律，方形波主旋律 + 三角波低音，节奏轻快。
 // 可通过右上角♪按钮 / 键盘 N 开关；音效单独由🔊按钮 / B 开关；M 是全部静音。
 const MUSIC = {
-  tempo: 84, // 舒缓慢速，每拍 60/84 秒；每个音符占半拍（8分音符）
-  melody: [261.63,329.63,392,329.63,  220,261.63,329.63,261.63,
-           349.23,440,523.25,440,  392,493.88,587.33,493.88],
-  bass:   [130.81,0,0,0,  110,0,0,0,  87.31,0,0,0,  98,0,0,0]
+  tempo: 138, // 欢快，每拍 60/138 秒；每个音符占半拍（8分音符）
+  melody: [329.63,392,523.25,392,  329.63,392,440,392,
+           349.23,440,523.25,440,  392,329.63,293.66,329.63],
+  bass:   [130.81,0,196,0,  130.81,0,0,0,  174.61,0,261.63,0,  196,0,123.47,130.81]
 };
 let musicOn = true, musicStep = 0, musicAcc = 0;
 function tickMusic(dt){
@@ -368,8 +375,8 @@ function tickMusic(dt){
     const s = musicStep % 16; musicStep++;
     if (!musicOn || muted) continue; // 关音乐/静音时不发声，但进度继续走
     const m = MUSIC.melody[s], b = MUSIC.bass[s];
-    if (m) beep(m, m, 0.32, "sine", 0.028, 0, "music");
-    if (b) beep(b, b, 0.55, "triangle", 0.04, 0, "music");
+    if (m) beep(m, m, 0.22, "square", 0.02, 0, "music");
+    if (b) beep(b, b, 0.42, "triangle", 0.045, 0, "music");
   }
 }
 
@@ -399,7 +406,7 @@ let isTouch = ("ontouchstart" in window) || (navigator.maxTouchPoints > 0);
 let padVisible = null;
 function fitCanvas(){ // 手机端用真实可视高度重算画布，避开 vh/100dvh 的浏览器工具栏误差
   if (!isTouch || !canvas.style) return;
-  const padH = (state === "play" || state === "stageclear") ? 150 : 24; // 底部触控面板占用高度
+  const padH = (state === "play" || state === "stageclear") ? 224 : 24; // 底部触控面板占用高度
   const availH = Math.max(180, (window.innerHeight || 0) - padH);
   const availW = Math.max(180, (window.innerWidth || 0) - 6);
   const w = Math.min(availW, availH * 1.423);
@@ -1059,35 +1066,46 @@ function drawTank(x, y, dir, color, size, invincible, variant){
 }
 
 function drawBrickTile(x, y, mask){
-  ctx.fillStyle = "#5c2206"; ctx.fillRect(x, y, TILE, TILE);
+  ctx.fillStyle = "#2c1104"; ctx.fillRect(x, y, TILE, TILE);
   for (let q = 0; q < 4; q++) {
     if (!(mask & (1 << q))) continue;
     const dx = (q & 1) ? TILE / 2 : 0, dy = (q & 2) ? TILE / 2 : 0;
-    ctx.fillStyle = "#c25a1c"; ctx.fillRect(x + dx + 1, y + dy + 1, TILE / 2 - 1, TILE / 2 - 1);
-    ctx.fillStyle = "#e07b36"; ctx.fillRect(x + dx + 1, y + dy + 1, TILE / 2 - 1, 3);
-    ctx.fillStyle = "#8f3c0e"; ctx.fillRect(x + dx + 1, y + dy + TILE / 2 - 2, TILE / 2 - 1, 2);
+    const bx = x + dx + 1, by = y + dy + 1, bs = TILE / 2 - 2;
+    ctx.fillStyle = "#a84a14"; ctx.fillRect(bx, by, bs, bs);
+    ctx.fillStyle = "#d8782c"; ctx.fillRect(bx, by, bs, 3);       // 顶部受光
+    ctx.fillStyle = "#5f2a09"; ctx.fillRect(bx, by + bs - 2, bs, 2); // 底部阴影
+    ctx.fillStyle = "#e08a3c"; ctx.fillRect(bx, by + 3, bs, 1);   // 中部亮线
+    ctx.fillStyle = "#7c340c"; ctx.fillRect(bx, by, 2, bs);       // 左棱
   }
 }
 function drawSteelTile(x, y){
-  ctx.fillStyle = "#b8b8b8"; ctx.fillRect(x, y, TILE, TILE);
-  ctx.strokeStyle = "#f2f2f2"; ctx.lineWidth = 4;
+  ctx.fillStyle = "#7c7c86"; ctx.fillRect(x, y, TILE, TILE);
+  ctx.fillStyle = "#b6b6c0"; ctx.fillRect(x + 2, y + 2, TILE - 4, TILE - 4);
+  ctx.fillStyle = "#e8e8ee"; ctx.fillRect(x + 2, y + 2, TILE - 4, 3);       // 顶部高光
+  ctx.fillStyle = "#5a5a64"; ctx.fillRect(x + 2, y + TILE - 5, TILE - 4, 3); // 底部阴影
+  ctx.strokeStyle = "#9c9ca8"; ctx.lineWidth = 3;
   ctx.beginPath();
-  ctx.moveTo(x + 3, y + 3); ctx.lineTo(x + TILE - 3, y + TILE - 3);
-  ctx.moveTo(x + TILE - 3, y + 3); ctx.lineTo(x + 3, y + TILE - 3);
+  ctx.moveTo(x + 5, y + 5); ctx.lineTo(x + TILE - 5, y + TILE - 5);
+  ctx.moveTo(x + TILE - 5, y + 5); ctx.lineTo(x + 5, y + TILE - 5);
   ctx.stroke();
-  ctx.strokeStyle = "#5c5c5c"; ctx.lineWidth = 1;
+  ctx.strokeStyle = "#3c3c44"; ctx.lineWidth = 1;
   ctx.strokeRect(x + 0.5, y + 0.5, TILE - 1, TILE - 1);
 }
 function drawWaterTile(x, y){
-  ctx.fillStyle = "#1f5fc9"; ctx.fillRect(x, y, TILE, TILE);
-  ctx.strokeStyle = "#6fb3ff"; ctx.lineWidth = 2;
+  ctx.fillStyle = "#173f8f"; ctx.fillRect(x, y, TILE, TILE);
+  ctx.fillStyle = "#2f6fd6"; ctx.fillRect(x, y, TILE, 4);          // 顶部亮
+  ctx.strokeStyle = "#8fc8ff"; ctx.lineWidth = 2;
   const off = Math.sin(elapsed * 2 + (x + y) * 0.08) * 3;
-  ctx.beginPath(); ctx.moveTo(x + 4, y + 10 + off); ctx.lineTo(x + TILE - 4, y + 10 - off); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x + 4, y + 11 + off); ctx.lineTo(x + TILE - 4, y + 11 - off); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(x + 4, y + 22 - off); ctx.lineTo(x + TILE - 4, y + 22 + off); ctx.stroke();
+  ctx.strokeStyle = "#5ea0f0"; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(x + 2, y + 16 + off); ctx.lineTo(x + 10, y + 16 - off); ctx.stroke();
 }
 function drawIceTile(x, y){
-  ctx.fillStyle = "#dfe9f5"; ctx.fillRect(x, y, TILE, TILE);
-  ctx.strokeStyle = "#b8cce4"; ctx.lineWidth = 1;
+  ctx.fillStyle = "#cfe0f5"; ctx.fillRect(x, y, TILE, TILE);
+  ctx.fillStyle = "#eaf3fc"; ctx.fillRect(x, y, TILE, 4);
+  ctx.fillStyle = "#a8c4e6"; ctx.fillRect(x, y + TILE - 4, TILE, 4);
+  ctx.strokeStyle = "#9dbbe0"; ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(x + 4, y); ctx.lineTo(x + TILE, y + TILE - 4);
   ctx.moveTo(x + 2, y + TILE); ctx.lineTo(x + TILE - 2, y + 2);
@@ -1095,29 +1113,35 @@ function drawIceTile(x, y){
 }
 function drawTreeTile(x, y){
   ctx.fillStyle = "#000"; ctx.fillRect(x, y, TILE, TILE);
-  ctx.fillStyle = "#2e7d32";
-  ctx.beginPath(); ctx.arc(x + 9, y + 10, 7, 0, 7); ctx.fill();
-  ctx.beginPath(); ctx.arc(x + 22, y + 9, 8, 0, 7); ctx.fill();
+  ctx.fillStyle = "#1f6b2a";
+  ctx.beginPath(); ctx.arc(x + 9, y + 11, 7, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.arc(x + 22, y + 10, 8, 0, 7); ctx.fill();
   ctx.beginPath(); ctx.arc(x + 16, y + 22, 8, 0, 7); ctx.fill();
-  ctx.fillStyle = "#57b854";
+  ctx.fillStyle = "#3f9a44";
+  ctx.beginPath(); ctx.arc(x + 9, y + 10, 5, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.arc(x + 22, y + 9, 6, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.arc(x + 16, y + 21, 6, 0, 7); ctx.fill();
+  ctx.fillStyle = "#6fce72";
   ctx.beginPath(); ctx.arc(x + 8, y + 8, 3, 0, 7); ctx.fill();
   ctx.beginPath(); ctx.arc(x + 22, y + 7, 3, 0, 7); ctx.fill();
 }
 function drawEagle(x, y){
-  ctx.fillStyle = "#222"; ctx.fillRect(x + 2, y + 28, 28, 4);
-  ctx.fillStyle = "#e8b82e";
+  ctx.fillStyle = "#1a1a1a"; ctx.fillRect(x + 2, y + 28, 28, 4);
+  ctx.fillStyle = "#f0c23a";
   ctx.beginPath(); ctx.ellipse(x + 16, y + 14, 6, 8, 0, 0, 7); ctx.fill();
   ctx.beginPath(); ctx.moveTo(x + 10, y + 18); ctx.lineTo(x + 4, y + 30); ctx.lineTo(x + 16, y + 24); ctx.fill();
   ctx.beginPath(); ctx.moveTo(x + 22, y + 18); ctx.lineTo(x + 28, y + 30); ctx.lineTo(x + 16, y + 24); ctx.fill();
-  ctx.fillStyle = "#f2c94c";
+  ctx.fillStyle = "#ffd95a";
   ctx.beginPath(); ctx.arc(x + 16, y + 6, 3.5, 0, 7); ctx.fill();
-  ctx.fillStyle = "#d98f1f";
+  ctx.fillStyle = "#c8861a";
   ctx.beginPath(); ctx.moveTo(x + 16, y + 4); ctx.lineTo(x + 21, y + 8); ctx.lineTo(x + 16, y + 10); ctx.fill();
   ctx.fillStyle = "#fff"; ctx.fillRect(x + 14, y + 4, 2, 2);
+  ctx.fillStyle = "#b8861a"; ctx.fillRect(x + 2, y + 30, 28, 2); // 底座阴影
 }
 function drawGround(x, y, c, r){
-  ctx.fillStyle = "#080808"; ctx.fillRect(x, y, TILE, TILE);
-  if ((c * 7 + r * 13) % 9 === 0) { ctx.fillStyle = "#141414"; ctx.fillRect(x + 8, y + 8, 2, 2); }
+  ctx.fillStyle = ((c + r) & 1) ? "#0d0d13" : "#111118";
+  ctx.fillRect(x, y, TILE, TILE);
+  if ((c * 7 + r * 13) % 9 === 0) { ctx.fillStyle = "#1b1b26"; ctx.fillRect(x + 9, y + 9, 2, 2); }
 }
 
 function drawPowerup(pw){
@@ -1194,52 +1218,39 @@ function drawPlayfield(){
 
 function drawHUD(){
   const x0 = FIELD;
-  ctx.fillStyle = "#101010"; ctx.fillRect(x0, 0, PANEL, H);
-  ctx.fillStyle = "#2a2a2a"; ctx.fillRect(x0 + 6, 6, PANEL - 12, H - 12);
-  ctx.strokeStyle = "#555"; ctx.lineWidth = 1; ctx.strokeRect(x0 + 6, 6, PANEL - 12, H - 12);
+  ctx.fillStyle = "#14141a"; ctx.fillRect(x0, 0, PANEL, H);
+  ctx.fillStyle = "#1e1e26"; ctx.fillRect(x0 + 6, 6, PANEL - 12, H - 12);
+  ctx.strokeStyle = "#3c3c48"; ctx.lineWidth = 2; ctx.strokeRect(x0 + 6, 6, PANEL - 12, H - 12);
+  ctx.fillStyle = "#26262f"; ctx.fillRect(x0 + 9, 9, PANEL - 18, H - 18);
   ctx.textAlign = "left"; ctx.textBaseline = "top";
-  ctx.fillStyle = "#bbb"; ctx.font = "12px 'Microsoft YaHei',monospace";
-  ctx.fillText("HISCORE", x0 + 14, 14);
-  ctx.fillStyle = "#ffd23d"; ctx.font = "bold 16px monospace";
-  ctx.fillText(String(hiscore).padStart(6, "0"), x0 + 14, 30);
-  ctx.fillStyle = "#bbb"; ctx.font = "12px 'Microsoft YaHei',monospace";
-  ctx.fillText("SCORE", x0 + 14, 56);
-  ctx.fillStyle = "#f7c632"; ctx.font = "bold 15px monospace";
-  ctx.fillText(String(score1).padStart(6, "0"), x0 + 14, 72);
-  if (gameMode === "2p") {
-    ctx.fillStyle = "#45b545"; ctx.font = "bold 15px monospace";
-    ctx.fillText(String(score2).padStart(6, "0"), x0 + 14, 90);
-  }
-  ctx.fillStyle = "#bbb"; ctx.font = "12px 'Microsoft YaHei',monospace";
-  ctx.fillText("STAGE", x0 + 14, 118);
-  ctx.fillStyle = "#fff"; ctx.font = "bold 16px monospace";
-  ctx.fillText(String(stage).padStart(2, "0"), x0 + 14, 134);
-
-  // 敌人剩余
-  ctx.fillStyle = "#bbb"; ctx.font = "12px 'Microsoft YaHei',monospace";
-  ctx.fillText("敌机", x0 + 14, 162);
-  ctx.fillStyle = "#fff"; ctx.font = "bold 14px monospace";
-  ctx.fillText(String(enemiesRemaining).padStart(2, "0"), x0 + 14, 178);
+  const label = (txt, yy) => { ctx.fillStyle = "#8f8fa0"; ctx.font = "12px 'Microsoft YaHei',monospace"; ctx.fillText(txt, x0 + 16, yy); };
+  const val = (txt, yy, col, sz) => { ctx.fillStyle = col || "#fff"; ctx.font = "bold " + (sz || 15) + "px monospace"; ctx.fillText(txt, x0 + 16, yy); };
+  label("HISCORE", 16);
+  val(String(hiscore).padStart(6, "0"), 32, "#ffd23d", 16);
+  label("SCORE", 58);
+  val(String(score1).padStart(6, "0"), 74, "#f7c632");
+  if (gameMode === "2p") val(String(score2).padStart(6, "0"), 92, "#45b545");
+  ctx.fillStyle = "#3c3c48"; ctx.fillRect(x0 + 14, 108, PANEL - 28, 1); // 分隔线
+  label("STAGE", 118);
+  val(String(stage).padStart(2, "0"), 134, "#fff", 16);
+  label("敌机", 162);
+  val(String(enemiesRemaining).padStart(2, "0"), 178, "#fff", 14);
   for (let i = 0; i < Math.min(10, enemiesRemaining); i++) {
     const ix = x0 + 14 + (i % 5) * 16, iy = 200 + Math.floor(i / 5) * 16;
     drawTank(ix, iy, DOWN, "#8f8f9a", 14, 0, 1);
   }
-
-  // 玩家命数
-  ctx.fillStyle = "#bbb"; ctx.font = "12px 'Microsoft YaHei',monospace";
-  ctx.fillText("1P", x0 + 14, 244);
+  ctx.fillStyle = "#3c3c48"; ctx.fillRect(x0 + 14, 234, PANEL - 28, 1); // 分隔线
+  label("1P", 244);
   for (let i = 0; i < Math.min(7, lives1); i++) drawTank(x0 + 14 + i * 17, 258, UP, "#f7c632", 14, 0);
   if (gameMode === "2p") {
-    ctx.fillText("2P", x0 + 14, 288);
+    label("2P", 288);
     for (let i = 0; i < Math.min(7, lives2); i++) drawTank(x0 + 14 + i * 17, 302, UP, "#45b545", 14, 0);
   }
-
-  // 状态提示
-  ctx.fillStyle = "#777"; ctx.font = "11px 'Microsoft YaHei',monospace";
-  ctx.fillText("P1: WASD+空格", x0 + 10, 350);
-  if (gameMode === "2p") ctx.fillText("P2: 方向键+.", x0 + 10, 366);
-  ctx.fillText("P 暂停  M 静音", x0 + 10, 388);
-  if (muted) { ctx.fillStyle = "#f2e27a"; ctx.fillText("已静音", x0 + 10, 404); }
+  ctx.fillStyle = "#6a6a7a"; ctx.font = "11px 'Microsoft YaHei',monospace";
+  ctx.fillText("P1: WASD+空格", x0 + 12, 350);
+  if (gameMode === "2p") ctx.fillText("P2: 方向键+.", x0 + 12, 366);
+  ctx.fillText("P 暂停  M 静音", x0 + 12, 388);
+  if (muted) { ctx.fillStyle = "#f2e27a"; ctx.fillText("已静音", x0 + 12, 404); }
   ctx.textAlign = "start";
 }
 
@@ -1259,26 +1270,36 @@ function drawOverlayText(lines, bigFirst){
 
 let titleTankX = -40;
 function drawTitle(){
-  ctx.fillStyle = "#000"; ctx.fillRect(0, 0, W, H);
+  const bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, "#0d0d15"); bg.addColorStop(1, "#15151f");
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
   const CX = W / 2; // 标题内容在整个窗口居中（画布=战场+HUD 面板，仅标题页 HUD 不画）
   // 画点装饰墙
   for (let c = 0; c < 13; c++) for (let r = 0; r < 13; r++)
     if ((c + r) % 5 === 0) drawBrickTile(c * TILE, r * TILE, 15);
   ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
-  ctx.fillStyle = "#f7c632"; ctx.font = "bold 52px 'Microsoft YaHei',sans-serif";
-  ctx.fillText("坦克大战", CX, 80);
-  ctx.strokeStyle = "#7a4b00"; ctx.lineWidth = 4; ctx.strokeText("坦克大战", CX, 80);
-  ctx.fillStyle = "#fff"; ctx.font = "bold 18px monospace";
+  const tg = ctx.createLinearGradient(0, 48, 0, 88);
+  tg.addColorStop(0, "#ffe07a"); tg.addColorStop(0.5, "#f7c632"); tg.addColorStop(1, "#c8871a");
+  ctx.font = "bold 52px 'Microsoft YaHei',sans-serif";
+  ctx.shadowColor = "rgba(247,198,50,.45)"; ctx.shadowBlur = 18;
+  ctx.fillStyle = tg; ctx.fillText("坦克大战", CX, 80);
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = "#5a3a08"; ctx.lineWidth = 4; ctx.strokeText("坦克大战", CX, 80);
+  ctx.fillStyle = "#cfe0ff"; ctx.font = "bold 18px monospace";
   ctx.fillText("BATTLE CITY", CX, 128);
 
   // 菜单按钮（标签用 middle 基线，垂直居中在按钮内）
   ctx.font = "bold 20px 'Microsoft YaHei',sans-serif";
   ctx.textBaseline = "middle";
   ctx.fillStyle = "#f7c632"; ctx.fillRect(CX - 120, 184, 240, 40);
-  ctx.strokeStyle = "#7a4b00"; ctx.lineWidth = 2; ctx.strokeRect(CX - 120, 184, 240, 40);
+  ctx.fillStyle = "#ffe07a"; ctx.fillRect(CX - 120, 184, 240, 4);   // 顶部高光
+  ctx.fillStyle = "#c8871a"; ctx.fillRect(CX - 120, 220, 240, 4);   // 底部阴影
+  ctx.strokeStyle = "#5a3a08"; ctx.lineWidth = 2; ctx.strokeRect(CX - 120, 184, 240, 40);
   ctx.fillStyle = "#1c1c1c"; ctx.fillText("1 人游戏  (Enter)", CX, 204);
   ctx.fillStyle = "#45b545"; ctx.fillRect(CX - 120, 236, 240, 40);
-  ctx.strokeStyle = "#1d5c1d"; ctx.lineWidth = 2; ctx.strokeRect(CX - 120, 236, 240, 40);
+  ctx.fillStyle = "#6fd06f"; ctx.fillRect(CX - 120, 236, 240, 4);
+  ctx.fillStyle = "#2a6a2a"; ctx.fillRect(CX - 120, 272, 240, 4);
+  ctx.strokeStyle = "#123a12"; ctx.lineWidth = 2; ctx.strokeRect(CX - 120, 236, 240, 40);
   ctx.fillStyle = "#1c1c1c"; ctx.fillText("双人对战  (按 1)", CX, 256);
 
   ctx.textBaseline = "alphabetic";
